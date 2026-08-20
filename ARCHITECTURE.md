@@ -346,8 +346,8 @@ the engine to JavaScript. Key constraints vs. native:
 - `wasm-opt = false` in Cargo.toml (disables wasm-pack's bundled optimizer); CI runs `wasm-opt -Oz` via system binaryen instead
 - SIMD: the portable kernel is used for wasm32 (no SIMD128 path yet)
 
-One module exports both `NeedleWasm` (v1) and `NeedleV2Wasm` (v2): **414 KB**
-after `wasm-opt -Oz`, 163 KB gzipped.
+One module exports both `NeedleWasm` (v1) and `NeedleV2Wasm` (v2): **413 KB**
+after `wasm-opt -Oz`, 156 KB over the wire.
 
 ```bash
 wasm-pack build crates/needle-wasm --target web --release --out-dir ../../pkg/

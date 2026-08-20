@@ -58,11 +58,11 @@ Tool calling usually means a paid API round-trip or hundreds of megabytes on dis
 <tr><td>Hosted function calling</td><td align="right">SDK + API</td><td align="right">$ per token</td><td align="center">leaves device</td><td align="center">✗</td></tr>
 <tr><td>llama.cpp + a 1B local model</td><td align="right">700 MB+</td><td align="right">free</td><td align="center">local</td><td align="center">✓</td></tr>
 <tr><td>ONNX Runtime Web + a model</td><td align="right">8 MB + model</td><td align="right">free</td><td align="center">local</td><td align="center">✓</td></tr>
-<tr><td><b><code>needle-rs</code> + Needle v2</b></td><td align="right"><b>414 KB + 13.7 MB</b></td><td align="right"><b>free</b></td><td align="center"><b>local</b></td><td align="center"><b>✓</b></td></tr>
+<tr><td><b><code>needle-rs</code> + Needle v2</b></td><td align="right"><b>413 KB + 13.7 MB</b></td><td align="right"><b>free</b></td><td align="center"><b>local</b></td><td align="center"><b>✓</b></td></tr>
 </tbody>
 </table>
 
-The runtime is 414 KB of WebAssembly (163 KB over the wire, gzipped) with **one** runtime dependency. A generation session needs about 23 MB of working memory.
+The runtime is 413 KB of WebAssembly (156 KB over the wire, brotli) with **one** runtime dependency. A generation session needs about 23 MB of working memory.
 
 <br/>
 
@@ -192,7 +192,7 @@ Every example in [`examples/`](examples/) runs on both.
 <table>
 <thead><tr><th align="left">Target</th><th align="center">Status</th><th align="right">Binary</th></tr></thead>
 <tbody>
-<tr><td>Browser / Node.js / Cloudflare Workers <sub>(WASM)</sub></td><td align="center">✓</td><td align="right"><code>414 KB</code> <sub>163 KB gzipped</sub></td></tr>
+<tr><td>Browser / Node.js / Cloudflare Workers <sub>(WASM)</sub></td><td align="center">✓</td><td align="right"><code>413 KB</code> <sub>156 KB over the wire</sub></td></tr>
 <tr><td>Linux / macOS / Windows CLI</td><td align="center">✓</td><td align="right"><code>601 KB</code></td></tr>
 <tr><td>Python <sub>(abi3 wheel, CPython ≥ 3.8)</sub></td><td align="center">✓</td><td align="right"><code>pip install needle-rs</code></td></tr>
 <tr><td>C / C++ / Go / Swift <sub>(FFI)</sub></td><td align="center">✓</td><td align="right"><code>needle_v2_*</code> + <code>needle_*</code></td></tr>
@@ -291,7 +291,7 @@ Full methodology — including the optimisations that were measured and **reject
 
 - **In-browser agents.** Route a user's sentence to one of your app's functions with no backend. See [`examples/browser-demo`](examples/browser-demo) and the [live demo](https://needle-rs.pages.dev).
 - **Dynamic tool sets.** Generate tools from live state each turn and let the model pick — [`examples/dom-editor`](examples/dom-editor) rewrites a page from plain English.
-- **Edge workers.** 414 KB of WASM fits inside a Cloudflare Worker.
+- **Edge workers.** 413 KB of WASM fits inside a Cloudflare Worker.
 - **Large tool catalogues.** Narrow hundreds of tools with the retrieval head before the call.
 - **Uncertainty-aware routing.** Use the confidence head to escalate to a larger model only when needed.
 - **Offline and embedded.** `no_std` kernels, one dependency, no allocator assumptions beyond `alloc`.

@@ -10,7 +10,7 @@
 
 # needle-rs
 
-A working tool-calling LLM in **414 KB of WebAssembly** — 163 KB gzipped. Runs in
+A working tool-calling LLM in **413 KB of WebAssembly** — 156 KB over the wire. Runs in
 the browser, Node.js, Deno, Bun and Cloudflare Workers. No server, no API key, no
 data leaving the device.
 
@@ -90,7 +90,7 @@ progress view — the **returned** string is the answer.
 | `load` | `load(cactBytes)` | `load(weightsBytes, vocabText)` |
 | Generate | `run`, `run_json`, `generate`, `run_stream` | `run`, `run_stream`, `run_batch` |
 | Confidence | `confidence_for`, `confidence` | — |
-| Retrieval | `contrastive_dim`, `encode_contrastive`, `retrieve_tools` | same |
+| Retrieval | `contrastive_dim`, `encode_contrastive`, `retrieve_tools` | same API, head-dependent |
 | Constrained decode | ✓ (`generate(..., constrain=true)`) | always on |
 | Sampling | ✓ (`temperature`, `seed`) | greedy only |
 
@@ -101,8 +101,13 @@ engine.generate(query, tools, 96, 0.8, 42, false); // sampled, reproducible
 
 // Narrow a large tool catalogue before routing.
 engine.retrieve_tools(query, JSON.stringify(descriptions), 3);
-// '[[0,0.9],[2,0.55],[1,0.31]]' — [index, score] pairs, descending
+// '[[0,0.9066212],[2,0.5472525],[1,0.5243999]]' — [index, score] pairs, descending
 ```
+
+Retrieval needs a checkpoint carrying a contrastive head. **Needle v2 has one
+(128 dimensions); the published v1 weights do not** — on those, `contrastive_dim()`
+returns `0`, `encode_contrastive()` returns `undefined`, and `retrieve_tools()`
+returns `[]`. Guard on `contrastive_dim() > 0` before relying on it.
 
 `confidence_for(query, tools, completion)` returns a probability in `(0, 1)`. The
 confidence head scores a judgement already made, so pass the completion you got
@@ -115,7 +120,7 @@ Weights are **not** bundled; fetch them once and let the browser cache them.
 | Version | File | Size | Source |
 |---|---|---|---|
 | v2 | `needle2.cact` | 13.7 MB | [`Cactus-Compute/needle2`](https://huggingface.co/Cactus-Compute/needle2) |
-| v1 | `needle.safetensors` + `vocab.txt` | 22 MB + 122 KB | [`Abdalrahman/needle-rs-safetensors`](https://huggingface.co/Abdalrahman/needle-rs-safetensors) |
+| v1 | `needle.safetensors` + `vocab.txt` | 22.3 MB + 122 KB | [`Abdalrahman/needle-rs-safetensors`](https://huggingface.co/Abdalrahman/needle-rs-safetensors) |
 
 A generation session needs roughly 23 MB of WASM linear memory. Linear memory
 never shrinks, so keep one engine per tab or isolate and reuse the handle.
