@@ -804,7 +804,11 @@ mod tests {
         dec.feed_bytes(b"[{\"name\":\"t\",\"arguments\":{\"alpha\":\"x\"},");
         dec.feed_bytes(b"{\"name\":\"t\",\"arguments\":{\"");
         assert!(dec.used_keys().is_empty(), "a new call clears the used set");
-        assert_eq!(dec.logit_mask(128)['a' as usize], 0.0, "alpha available again");
+        assert_eq!(
+            dec.logit_mask(128)['a' as usize],
+            0.0,
+            "alpha available again"
+        );
     }
     use super::*;
 

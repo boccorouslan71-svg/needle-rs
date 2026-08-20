@@ -19,7 +19,9 @@ const JAX_DECODE_MS_PER_TOKEN: f64 = 11.00;
 const TOOLS: &str = r#"[{"name":"get_weather","description":"Get current weather for a city","parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}},{"name":"send_email","description":"Send an email","parameters":{"type":"object","properties":{"to":{"type":"string"},"subject":{"type":"string"},"body":{"type":"string"}},"required":["to","body"]}}]"#;
 
 fn main() {
-    let path = std::env::args().nth(1).unwrap_or_else(|| "weights/needle2.cact".into());
+    let path = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "weights/needle2.cact".into());
     let engine = match V2Engine::load(&path) {
         Ok(e) => e,
         Err(e) => {
@@ -30,7 +32,10 @@ fn main() {
 
     // A prompt that generates a long reasoning trace, so decode is measurable.
     let query = "Weather in Reykjavik and then email bob@example.com about it";
-    let opts = GenerateOptions { max_new_tokens: 96, ..Default::default() };
+    let opts = GenerateOptions {
+        max_new_tokens: 96,
+        ..Default::default()
+    };
 
     let mut prefill_ms = f64::INFINITY;
     let mut decode_ms = f64::INFINITY;
@@ -55,14 +60,20 @@ fn main() {
     let per_tok = decode_ms / (n_gen.saturating_sub(1)).max(1) as f64;
 
     println!("needle-rs (this machine, parallel):");
-    println!("  prefill {n_prompt} tok : {prefill_ms:7.1} ms = {:.2} ms/tok", prefill_ms / n_prompt as f64);
+    println!(
+        "  prefill {n_prompt} tok : {prefill_ms:7.1} ms = {:.2} ms/tok",
+        prefill_ms / n_prompt as f64
+    );
     println!("  decode  {n_gen} tok : {decode_ms:7.1} ms = {per_tok:.2} ms/tok");
     println!("\nPython/JAX reference (same machine, same weights, warm):");
     println!("  prefill {n_prompt} tok : {JAX_PREFILL_MS:7.1} ms");
     println!("  decode          : {JAX_DECODE_MS_PER_TOKEN:.2} ms/tok");
 
     let d = JAX_DECODE_MS_PER_TOKEN - per_tok;
-    println!("\nper-token decode advantage: {d:.2} ms ({:.2}x)", JAX_DECODE_MS_PER_TOKEN / per_tok);
+    println!(
+        "\nper-token decode advantage: {d:.2} ms ({:.2}x)",
+        JAX_DECODE_MS_PER_TOKEN / per_tok
+    );
     if d <= 0.0 {
         println!("no decode advantage; the reference wins at every length");
         return;
@@ -71,7 +82,10 @@ fn main() {
     println!("prefill deficit: {:.1} ms", prefill_ms - JAX_PREFILL_MS);
     println!("crossover: needle-rs is faster once more than {crossover:.0} tokens are generated");
 
-    println!("\n{:>8} {:>12} {:>12} {:>10}", "tokens", "needle-rs", "jax", "ratio");
+    println!(
+        "\n{:>8} {:>12} {:>12} {:>10}",
+        "tokens", "needle-rs", "jax", "ratio"
+    );
     for n in [8usize, 19, 32, 40, 64, 96, 128, 256, 512] {
         let ours = prefill_ms + per_tok * n as f64;
         let theirs = JAX_PREFILL_MS + JAX_DECODE_MS_PER_TOKEN * n as f64;

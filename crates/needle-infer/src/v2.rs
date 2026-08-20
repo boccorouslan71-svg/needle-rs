@@ -177,7 +177,11 @@ impl V2Bundle {
         let model = V2Model::new(cfg, embedding, layers, mhc, engrams, final_norm)
             .map_err(V2LoadError::Model)?;
 
-        Ok(Self { model, tokenizer, heads })
+        Ok(Self {
+            model,
+            tokenizer,
+            heads,
+        })
     }
 
     pub fn head(&self, code: u8) -> Option<&ProbeHead> {

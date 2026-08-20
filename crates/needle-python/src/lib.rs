@@ -173,9 +173,15 @@ impl PyV2Engine {
 
     /// Run several queries in sequence, reusing one KV cache.
     fn run_batch(&self, examples: Vec<(String, String)>) -> Vec<String> {
-        let pairs: Vec<(&str, &str)> =
-            examples.iter().map(|(q, t)| (q.as_str(), t.as_str())).collect();
-        self.inner.run_batch(&pairs).into_iter().map(|r| r.text).collect()
+        let pairs: Vec<(&str, &str)> = examples
+            .iter()
+            .map(|(q, t)| (q.as_str(), t.as_str()))
+            .collect();
+        self.inner
+            .run_batch(&pairs)
+            .into_iter()
+            .map(|r| r.text)
+            .collect()
     }
 
     /// L2-normalised contrastive embedding, or None without such a head.

@@ -471,7 +471,9 @@ impl V2Model {
     }
 
     fn batch_engram_gate(&self, li: usize, k: usize, b: &mut V2Batch) {
-        let Some(site) = self.cfg.engram.site_of_layer(li) else { return };
+        let Some(site) = self.cfg.engram.site_of_layer(li) else {
+            return;
+        };
         let d = self.cfg.d_model;
         let sites = self.cfg.engram.sites.len();
         // Divide, as `V2Model::engram_gate` does. Multiplying by a precomputed
@@ -497,7 +499,14 @@ impl V2Model {
         }
     }
 
-    fn batch_attention(&self, li: usize, k: usize, p0: usize, state: &mut V2State, b: &mut V2Batch) {
+    fn batch_attention(
+        &self,
+        li: usize,
+        k: usize,
+        p0: usize,
+        state: &mut V2State,
+        b: &mut V2Batch,
+    ) {
         let layer = &self.layers[li];
         let cfg = &self.cfg;
         let (h_n, kv_n, hd) = (cfg.num_heads, cfg.num_kv_heads, cfg.head_dim);
@@ -524,14 +533,21 @@ impl V2Model {
             b.h[i * d..(i + 1) * d].copy_from_slice(&b.bx[i * d..(i + 1) * d]);
             zc_rms_norm_vec(&mut b.h[i * d..(i + 1) * d], &layer.norm_in);
             let (h, h_prep) = (&b.h, &mut b.h_prep);
-            layer
-                .q_proj
-                .prepare_input(&h[i * d..(i + 1) * d], &mut h_prep[i * prep..(i + 1) * prep]);
+            layer.q_proj.prepare_input(
+                &h[i * d..(i + 1) * d],
+                &mut h_prep[i * prep..(i + 1) * prep],
+            );
         }
         let xh = &b.h_prep[..k * prep];
-        layer.q_proj.matmul_rows_prepared(xh, k, 0, attn, &mut b.q[..k * attn], &mut b.acc);
-        layer.k_proj.matmul_rows_prepared(xh, k, 0, kv, &mut b.k[..k * kv], &mut b.acc);
-        layer.v_proj.matmul_rows_prepared(xh, k, 0, kv, &mut b.v[..k * kv], &mut b.acc);
+        layer
+            .q_proj
+            .matmul_rows_prepared(xh, k, 0, attn, &mut b.q[..k * attn], &mut b.acc);
+        layer
+            .k_proj
+            .matmul_rows_prepared(xh, k, 0, kv, &mut b.k[..k * kv], &mut b.acc);
+        layer
+            .v_proj
+            .matmul_rows_prepared(xh, k, 0, kv, &mut b.v[..k * kv], &mut b.acc);
         layer
             .gate_proj
             .matmul_rows_prepared(xh, k, 0, attn, &mut b.gate[..k * attn], &mut b.acc);
@@ -683,7 +699,10 @@ impl V2Model {
             for i in 0..k {
                 let (lo, hi) = (i * d, (i + 1) * d);
                 // Split the borrows by hand: each of these is a distinct field.
-                let (y, ar) = (&mut b.y[lo..hi] as *mut [f32], &mut b.attn_result[lo..hi] as *mut [f32]);
+                let (y, ar) = (
+                    &mut b.y[lo..hi] as *mut [f32],
+                    &mut b.attn_result[lo..hi] as *mut [f32],
+                );
                 // SAFETY: y, ar, h, mlp, bx and u are disjoint fields of `b`.
                 unsafe {
                     mlp_one(
@@ -709,14 +728,9 @@ impl V2Model {
         let prep = self.mhc.phi_pre.prepared_len();
         let xh = &b.nx_prep[..k * prep];
 
-        self.mhc.phi_post.matmul_rows_prepared(
-            xh,
-            k,
-            li * n,
-            n,
-            &mut b.hpost[..k * n],
-            &mut b.acc,
-        );
+        self.mhc
+            .phi_post
+            .matmul_rows_prepared(xh, k, li * n, n, &mut b.hpost[..k * n], &mut b.acc);
         self.mhc.phi_res.matmul_rows_prepared(
             xh,
             k,

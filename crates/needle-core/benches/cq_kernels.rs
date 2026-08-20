@@ -107,7 +107,9 @@ fn bench_matmul(c: &mut Criterion) {
     for &batch in &[1usize, 8, 32, 128] {
         let mut xh = vec![0.0f32; batch * pl];
         for b in 0..batch {
-            let x: Vec<f32> = (0..512).map(|i| ((i + b * 7) as f32 * 0.13).sin()).collect();
+            let x: Vec<f32> = (0..512)
+                .map(|i| ((i + b * 7) as f32 * 0.13).sin())
+                .collect();
             w.prepare_input(&x, &mut xh[b * pl..(b + 1) * pl]);
         }
         let mut y = vec![0.0f32; batch * 512];
@@ -200,5 +202,13 @@ fn bench_fwht(c: &mut Criterion) {
     g.finish();
 }
 
-criterion_group!(benches, bench_matvec, bench_vs_reference, bench_matmul, bench_harness_effect, bench_prepare, bench_fwht);
+criterion_group!(
+    benches,
+    bench_matvec,
+    bench_vs_reference,
+    bench_matmul,
+    bench_harness_effect,
+    bench_prepare,
+    bench_fwht
+);
 criterion_main!(benches);

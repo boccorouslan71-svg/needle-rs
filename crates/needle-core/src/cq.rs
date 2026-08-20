@@ -105,7 +105,11 @@ pub fn codebook_slice(codebook: &[f32], bits: u8) -> Result<&[f32], CqError> {
 /// Bytes one packed row occupies. Mirrors `export._packed_row_bytes`.
 #[inline]
 pub fn packed_row_bytes(in_padded: usize, bits: u8) -> usize {
-    let effective = if bits == TERNARY_RECORD_BITS { 2 } else { bits as usize };
+    let effective = if bits == TERNARY_RECORD_BITS {
+        2
+    } else {
+        bits as usize
+    };
     in_padded * effective / 8
 }
 
@@ -275,7 +279,9 @@ impl CqWeight {
     fn matvec_rows_par(&self, xh: &[f32], row_start: usize, y: &mut [f32]) {
         use rayon::prelude::*;
         let rows = y.len();
-        let chunk = rows.div_ceil(rayon::current_num_threads()).max(MIN_PAR_ROWS);
+        let chunk = rows
+            .div_ceil(rayon::current_num_threads())
+            .max(MIN_PAR_ROWS);
         y.par_chunks_mut(chunk).enumerate().for_each(|(ci, part)| {
             self.matvec_rows_serial(xh, row_start + ci * chunk, part);
         });
@@ -352,7 +358,11 @@ impl CqWeight {
     pub fn matvec_prepared_reference(&self, xh: &[f32], y: &mut [f32]) {
         debug_assert_eq!(xh.len(), self.in_padded);
         debug_assert_eq!(y.len(), self.out_feat);
-        let bits = if self.bits == TERNARY_RECORD_BITS { 2 } else { self.bits as usize };
+        let bits = if self.bits == TERNARY_RECORD_BITS {
+            2
+        } else {
+            self.bits as usize
+        };
         let mask = (1u32 << bits) - 1;
         for (o, slot) in y.iter_mut().enumerate() {
             let row = &self.packed[o * self.row_bytes..(o + 1) * self.row_bytes];
@@ -435,8 +445,7 @@ impl CqWeight {
     #[cfg(feature = "parallel")]
     #[inline]
     fn should_parallelise(&self, rows: usize) -> bool {
-        rows >= 2 * MIN_PAR_ROWS
-            && rows.saturating_mul(self.in_padded) >= PAR_MIN_MACS
+        rows >= 2 * MIN_PAR_ROWS && rows.saturating_mul(self.in_padded) >= PAR_MIN_MACS
     }
 
     /// Split the output rows across the pool.
@@ -476,7 +485,9 @@ impl CqWeight {
         }
 
         let out = Out(y.as_mut_ptr());
-        let chunk = rows.div_ceil(rayon::current_num_threads()).max(MIN_PAR_ROWS);
+        let chunk = rows
+            .div_ceil(rayon::current_num_threads())
+            .max(MIN_PAR_ROWS);
         let bands: Vec<usize> = (0..rows).step_by(chunk).collect();
 
         bands.into_par_iter().for_each(|r0| {
@@ -513,7 +524,9 @@ impl CqWeight {
     ) {
         use rayon::prelude::*;
         let stride = self.in_padded;
-        let band = batch.div_ceil(rayon::current_num_threads()).max(MIN_PAR_BATCH);
+        let band = batch
+            .div_ceil(rayon::current_num_threads())
+            .max(MIN_PAR_BATCH);
         y[..batch * rows]
             .par_chunks_mut(band * rows)
             .enumerate()
@@ -557,9 +570,7 @@ impl CqWeight {
         #[cfg(all(target_arch = "x86_64", feature = "simd"))]
         if crate::quant::has_avx2() {
             // Safety: has_avx2() confirmed AVX2 and FMA via CPUID.
-            return unsafe {
-                self.matmul_rows_prepared_avx2(xh, batch, row_start, rows, y, acc)
-            };
+            return unsafe { self.matmul_rows_prepared_avx2(xh, batch, row_start, rows, y, acc) };
         }
         self.matmul_rows_prepared_impl(xh, batch, row_start, rows, y, acc)
     }
@@ -870,7 +881,11 @@ fn read_bits(row: &[u8], bit: usize, bits: usize, mask: u32) -> u32 {
     let shift = bit % 8;
     // A field is at most 4 bits wide, so it spans at most two bytes.
     let lo = row[byte] as u32;
-    let hi = if shift + bits > 8 { row[byte + 1] as u32 } else { 0 };
+    let hi = if shift + bits > 8 {
+        row[byte + 1] as u32
+    } else {
+        0
+    };
     ((lo | (hi << 8)) >> shift) & mask
 }
 
@@ -998,7 +1013,10 @@ mod tests {
 
         let packed = if bits == TERNARY_RECORD_BITS {
             // trit 0,1,2 -> crumb 3,0,1
-            let crumbs: Vec<u8> = idx.iter().map(|&t| if t == 0 { 3 } else { t - 1 }).collect();
+            let crumbs: Vec<u8> = idx
+                .iter()
+                .map(|&t| if t == 0 { 3 } else { t - 1 })
+                .collect();
             pack_lsb(&crumbs, out, in_pad, 2)
         } else {
             pack_lsb(&idx, out, in_pad, bits as usize)
@@ -1058,19 +1076,22 @@ mod tests {
     #[test]
     fn matvec_matches_dense_multiply() {
         for &bits in &WIDTHS {
-            for &(out, in_feat, group) in
-                &[(5usize, 16usize, 16usize), (3, 40, 8), (9, 128, 128), (4, 200, 64)]
-            {
+            for &(out, in_feat, group) in &[
+                (5usize, 16usize, 16usize),
+                (3, 40, 8),
+                (9, 128, 128),
+                (4, 200, 64),
+            ] {
                 let c = build_case(out, in_feat, group, bits);
-                let x: Vec<f32> =
-                    (0..in_feat).map(|i| (i as f32 * 0.31).sin() * 1.7 + 0.05 * i as f32).collect();
+                let x: Vec<f32> = (0..in_feat)
+                    .map(|i| (i as f32 * 0.31).sin() * 1.7 + 0.05 * i as f32)
+                    .collect();
 
                 let mut got = vec![0.0f32; out];
                 c.w.matvec(&x, &mut got);
 
                 for (o, &g_o) in got.iter().enumerate() {
-                    let want: f32 =
-                        (0..in_feat).map(|j| c.dense[o * in_feat + j] * x[j]).sum();
+                    let want: f32 = (0..in_feat).map(|j| c.dense[o * in_feat + j] * x[j]).sum();
                     let tol = 1e-4 * want.abs().max(1.0);
                     assert!(
                         (g_o - want).abs() < tol,
@@ -1109,7 +1130,11 @@ mod tests {
             for &(start, len) in &[(0usize, 4usize), (4, 4), (8, 16), (20, 4), (23, 1)] {
                 let mut band = vec![0.0f32; len];
                 c.w.matvec_rows_prepared(&xh, start, &mut band);
-                assert_eq!(&band[..], &full[start..start + len], "bits={bits} band {start}+{len}");
+                assert_eq!(
+                    &band[..],
+                    &full[start..start + len],
+                    "bits={bits} band {start}+{len}"
+                );
             }
         }
     }
@@ -1122,11 +1147,16 @@ mod tests {
     #[test]
     fn matvec_matches_simple_reference() {
         for &bits in &WIDTHS {
-            for &(out, in_feat, group) in
-                &[(16usize, 128usize, 128usize), (5, 40, 8), (7, 200, 64), (9, 512, 128)]
-            {
+            for &(out, in_feat, group) in &[
+                (16usize, 128usize, 128usize),
+                (5, 40, 8),
+                (7, 200, 64),
+                (9, 512, 128),
+            ] {
                 let c = build_case(out, in_feat, group, bits);
-                let x: Vec<f32> = (0..in_feat).map(|i| (i as f32 * 0.29).sin() * 2.0).collect();
+                let x: Vec<f32> = (0..in_feat)
+                    .map(|i| (i as f32 * 0.29).sin() * 2.0)
+                    .collect();
                 let mut xh = vec![0.0f32; c.w.prepared_len()];
                 c.w.prepare_input(&x, &mut xh);
 
@@ -1151,9 +1181,12 @@ mod tests {
     #[test]
     fn matmul_matches_repeated_matvec() {
         for &bits in &WIDTHS {
-            for &(out, in_feat, group) in
-                &[(24usize, 128usize, 128usize), (9, 40, 8), (5, 200, 64), (16, 512, 128)]
-            {
+            for &(out, in_feat, group) in &[
+                (24usize, 128usize, 128usize),
+                (9, 40, 8),
+                (5, 200, 64),
+                (16, 512, 128),
+            ] {
                 let c = build_case(out, in_feat, group, bits);
                 for &batch in &[1usize, 2, 7, 16] {
                     // Distinct activation per batch row.
@@ -1187,7 +1220,8 @@ mod tests {
                             );
                             for r in 0..rows {
                                 assert_eq!(
-                                    got[b * rows + r], want[r],
+                                    got[b * rows + r],
+                                    want[r],
                                     "bits={bits} {out}x{in_feat} g={group} batch={batch} \
                                      rows={row_start}+{rows} b={b} r={r}"
                                 );
@@ -1248,9 +1282,15 @@ mod tests {
         let err = |b: &[u8], out, in_f, group, bits, cb: &[f32]| {
             CqWeight::from_blob(b, out, in_f, group, bits, cb).err()
         };
-        assert_eq!(err(&blob, 4, 128, 128, 7, &cb), Some(CqError::UnsupportedBits(7)));
+        assert_eq!(
+            err(&blob, 4, 128, 128, 7, &cb),
+            Some(CqError::UnsupportedBits(7))
+        );
         assert_eq!(err(&blob, 4, 128, 96, 2, &cb), Some(CqError::BadGroup(96)));
-        assert_eq!(err(&blob, 4, 128, 100, 2, &cb), Some(CqError::BadGroup(100)));
+        assert_eq!(
+            err(&blob, 4, 128, 100, 2, &cb),
+            Some(CqError::BadGroup(100))
+        );
         assert_eq!(err(&blob, 0, 128, 128, 2, &cb), Some(CqError::EmptyShape));
         assert_eq!(err(&blob, 4, 0, 128, 2, &cb), Some(CqError::EmptyShape));
         assert!(matches!(
@@ -1287,7 +1327,10 @@ mod dispatch_tests {
             "has_avx2() disagrees with std's detection; the dispatch would pick the wrong kernel"
         );
         if cpuid_says {
-            assert!(we_say, "AVX2 is present but the wide kernel would not be selected");
+            assert!(
+                we_say,
+                "AVX2 is present but the wide kernel would not be selected"
+            );
             self::std::eprintln!("AVX2 dispatch active: the wide packed-dot kernel is in use");
         } else {
             self::std::eprintln!("no AVX2 on this host; the portable kernel is in use");

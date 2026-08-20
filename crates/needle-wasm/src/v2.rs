@@ -51,7 +51,10 @@ impl NeedleV2Wasm {
     /// Just the `<tool_call>` payload, or an empty string if none was emitted.
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = run_json))]
     pub fn run_json(&self, query: &str, tools_json: &str) -> String {
-        self.engine.run(query, tools_json).tool_call.unwrap_or_default()
+        self.engine
+            .run(query, tools_json)
+            .tool_call
+            .unwrap_or_default()
     }
 
     /// Generation with explicit settings. `temperature <= 0` is greedy.
@@ -66,14 +69,20 @@ impl NeedleV2Wasm {
         constrain: bool,
     ) -> String {
         let opts = GenerateOptions {
-            max_new_tokens: if max_new_tokens == 0 { 128 } else { max_new_tokens },
+            max_new_tokens: if max_new_tokens == 0 {
+                128
+            } else {
+                max_new_tokens
+            },
             temperature: temperature.max(0.0),
             // JS numbers are f64; clamp rather than wrap on a negative or huge seed.
             seed: seed.max(0.0).min(u64::MAX as f64) as u64,
             constrain,
             ..Default::default()
         };
-        self.engine.generate(query, tools_json, &opts, |_, _| {}).text
+        self.engine
+            .generate(query, tools_json, &opts, |_, _| {})
+            .text
     }
 
     /// L2-normalised contrastive embedding, or `null` without such a head.
@@ -129,10 +138,7 @@ impl NeedleV2Wasm {
         };
         let refs: Vec<&str> = descs.iter().map(String::as_str).collect();
         let ranked = self.engine.retrieve_tools(query, &refs, top_k);
-        let parts: Vec<String> = ranked
-            .iter()
-            .map(|(i, s)| format!("[{i},{s}]"))
-            .collect();
+        let parts: Vec<String> = ranked.iter().map(|(i, s)| format!("[{i},{s}]")).collect();
         format!("[{}]", parts.join(","))
     }
 }
@@ -142,16 +148,15 @@ impl NeedleV2Wasm {
 impl NeedleV2Wasm {
     /// Streaming generation. `on_token(tokenId, piece)` fires per token.
     #[wasm_bindgen(js_name = run_stream)]
-    pub fn run_stream(
-        &self,
-        query: &str,
-        tools_json: &str,
-        on_token: &js_sys::Function,
-    ) -> String {
+    pub fn run_stream(&self, query: &str, tools_json: &str, on_token: &js_sys::Function) -> String {
         let this = JsValue::NULL;
         self.engine
             .run_stream(query, tools_json, |id, piece| {
-                let _ = on_token.call2(&this, &JsValue::from_f64(id as f64), &JsValue::from_str(piece));
+                let _ = on_token.call2(
+                    &this,
+                    &JsValue::from_f64(id as f64),
+                    &JsValue::from_str(piece),
+                );
             })
             .text
     }

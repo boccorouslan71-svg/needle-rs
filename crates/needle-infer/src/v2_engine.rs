@@ -135,11 +135,15 @@ pub struct V2Engine {
 
 impl V2Engine {
     pub fn load<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
-        Ok(Self { bundle: V2Bundle::load(path)? })
+        Ok(Self {
+            bundle: V2Bundle::load(path)?,
+        })
     }
 
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, V2LoadError> {
-        Ok(Self { bundle: V2Bundle::from_bytes(bytes)? })
+        Ok(Self {
+            bundle: V2Bundle::from_bytes(bytes)?,
+        })
     }
 
     pub fn model(&self) -> &V2Model {
@@ -279,7 +283,11 @@ impl V2Engine {
         let mut ids = Vec::with_capacity(64);
         ids.push(tok.bos_id);
         ids.extend(tok.encode(&prompt));
-        let room = model.cfg.max_seq_len.saturating_sub(opts.max_new_tokens).max(1);
+        let room = model
+            .cfg
+            .max_seq_len
+            .saturating_sub(opts.max_new_tokens)
+            .max(1);
         if ids.len() > room {
             ids.truncate(room);
         }
@@ -320,9 +328,8 @@ impl V2Engine {
         let mut grammar = if opts.constrain {
             let defs = ToolDef::from_json(tools_json);
             // v2 additionally forbids repeating an argument key within a call.
-            (!defs.is_empty()).then(|| {
-                ConstrainedDecoder::new(&defs, byte_table(tok)).with_unique_arg_keys()
-            })
+            (!defs.is_empty())
+                .then(|| ConstrainedDecoder::new(&defs, byte_table(tok)).with_unique_arg_keys())
         } else {
             None
         };
@@ -554,7 +561,8 @@ impl V2Engine {
     ///
     /// [`confidence`]: V2Engine::confidence
     pub fn confidence_with_state(&self, text: &str, state: &mut V2State) -> Option<f32> {
-        self.run_head_with_state(HEAD_CONFIDENCE, text, state).map(|v| v[0])
+        self.run_head_with_state(HEAD_CONFIDENCE, text, state)
+            .map(|v| v[0])
     }
 
     /// Width of the contrastive embedding, or 0 if there is no such head.
@@ -623,7 +631,9 @@ impl V2Engine {
         // One state for the query and every description: a head state is the
         // full-length cache, so allocating per description would mean tens of
         // megabytes churned per call.
-        let Some(mut state) = self.new_head_state() else { return Vec::new() };
+        let Some(mut state) = self.new_head_state() else {
+            return Vec::new();
+        };
         let Some(q) = self.encode_contrastive_with_state(query, &mut state) else {
             return Vec::new();
         };
@@ -640,7 +650,6 @@ impl V2Engine {
         scored.truncate(top_k);
         scored
     }
-
 }
 
 /// Strip insignificant whitespace from JSON, leaving string literals untouched.
@@ -698,7 +707,10 @@ fn incremental_piece(tok: &SpTokenizer, ids: &[u32]) -> String {
     }
     let before = tok.decode(&ids[..ids.len() - 1]);
     let after = tok.decode(ids);
-    after.strip_prefix(&before).map(str::to_string).unwrap_or(after)
+    after
+        .strip_prefix(&before)
+        .map(str::to_string)
+        .unwrap_or(after)
 }
 
 fn extract_between(text: &str, open: &str, close: &str) -> Option<String> {
@@ -750,7 +762,9 @@ struct SplitMix64 {
 
 impl SplitMix64 {
     fn new(seed: u64) -> Self {
-        Self { state: seed.wrapping_add(0x9E37_79B9_7F4A_7C15) }
+        Self {
+            state: seed.wrapping_add(0x9E37_79B9_7F4A_7C15),
+        }
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -776,10 +790,19 @@ mod tests {
         // Whitespace between tokens goes; whitespace inside strings stays.
         assert_eq!(compact_json("{ \"a\" : 1 }"), "{\"a\":1}");
         assert_eq!(compact_json("[\n  1,\n  2\n]"), "[1,2]");
-        assert_eq!(compact_json("{\"a\": \"keep  me\"}"), "{\"a\":\"keep  me\"}");
-        assert_eq!(compact_json("{\"a\": \"tab\\there\"}"), "{\"a\":\"tab\\there\"}");
+        assert_eq!(
+            compact_json("{\"a\": \"keep  me\"}"),
+            "{\"a\":\"keep  me\"}"
+        );
+        assert_eq!(
+            compact_json("{\"a\": \"tab\\there\"}"),
+            "{\"a\":\"tab\\there\"}"
+        );
         // An escaped quote must not end the string early.
-        assert_eq!(compact_json("{\"a\": \"q \\\" x\"}"), "{\"a\":\"q \\\" x\"}");
+        assert_eq!(
+            compact_json("{\"a\": \"q \\\" x\"}"),
+            "{\"a\":\"q \\\" x\"}"
+        );
         // A backslash before the closing quote is itself escaped.
         assert_eq!(compact_json("{\"a\": \"b\\\\\"}"), "{\"a\":\"b\\\\\"}");
         // Already compact: unchanged, so parity fixtures cannot move.
@@ -829,12 +852,18 @@ mod tests {
     #[test]
     fn extracts_tool_call_and_thinking() {
         let t = "<think>reasoning here</think>\n<tool_call>[{\"name\":\"f\"}]</tool_call>";
-        assert_eq!(extract_between(t, THINK_START, THINK_END), Some("reasoning here".into()));
+        assert_eq!(
+            extract_between(t, THINK_START, THINK_END),
+            Some("reasoning here".into())
+        );
         assert_eq!(
             extract_between(t, TOOL_CALL_START, TOOL_CALL_END),
             Some("[{\"name\":\"f\"}]".into())
         );
-        assert_eq!(extract_between("no markers", TOOL_CALL_START, TOOL_CALL_END), None);
+        assert_eq!(
+            extract_between("no markers", TOOL_CALL_START, TOOL_CALL_END),
+            None
+        );
     }
 
     /// A run that hit the token cap mid-call should still surface the partial

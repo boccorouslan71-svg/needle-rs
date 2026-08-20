@@ -127,7 +127,8 @@ unsafe extern "C" fn collect(_id: u32, piece: *const c_char, ud: *mut c_void) {
     let sink = &mut *(ud as *mut Sink);
     sink.calls += 1;
     if !piece.is_null() {
-        sink.pieces.push_str(&CStr::from_ptr(piece).to_string_lossy());
+        sink.pieces
+            .push_str(&CStr::from_ptr(piece).to_string_lossy());
     }
 }
 
@@ -140,7 +141,10 @@ fn streaming_callback_reassembles_the_output() {
         let h = load();
         let q = CString::new("What's the weather in Rome?").unwrap();
         let t = CString::new(TOOLS).unwrap();
-        let mut sink = Sink { pieces: String::new(), calls: 0 };
+        let mut sink = Sink {
+            pieces: String::new(),
+            calls: 0,
+        };
         let text = take(needle_v2_run_stream(
             h,
             q.as_ptr(),
@@ -164,7 +168,13 @@ fn streaming_without_a_callback_still_returns() {
         let h = load();
         let q = CString::new("Weather in Oslo?").unwrap();
         let t = CString::new(TOOLS).unwrap();
-        let text = take(needle_v2_run_stream(h, q.as_ptr(), t.as_ptr(), None, ptr::null_mut()));
+        let text = take(needle_v2_run_stream(
+            h,
+            q.as_ptr(),
+            t.as_ptr(),
+            None,
+            ptr::null_mut(),
+        ));
         assert!(!text.is_empty());
         needle_v2_free(h);
     }
@@ -182,13 +192,23 @@ fn heads_are_reachable_through_the_abi() {
 
         let text = CString::new("get_weather: Get current weather for a city").unwrap();
         let mut emb = vec![0.0f32; dim];
-        assert!(needle_v2_encode_contrastive(h, text.as_ptr(), emb.as_mut_ptr(), dim));
+        assert!(needle_v2_encode_contrastive(
+            h,
+            text.as_ptr(),
+            emb.as_mut_ptr(),
+            dim
+        ));
         let norm: f32 = emb.iter().map(|v| v * v).sum::<f32>().sqrt();
         assert!((norm - 1.0).abs() < 1e-4, "not unit norm: {norm}");
 
         // Too small a buffer must fail rather than overflow.
         let mut tiny = vec![0.0f32; dim - 1];
-        assert!(!needle_v2_encode_contrastive(h, text.as_ptr(), tiny.as_mut_ptr(), dim - 1));
+        assert!(!needle_v2_encode_contrastive(
+            h,
+            text.as_ptr(),
+            tiny.as_mut_ptr(),
+            dim - 1
+        ));
         assert!(last_error().contains("too small"), "{}", last_error());
 
         let mut conf = 0.0f32;
@@ -229,8 +249,14 @@ fn retrieve_tools_writes_ranked_results() {
             scores.as_mut_ptr(),
         );
         assert_eq!(n, 3);
-        assert_eq!(idx[0], 0, "weather query should rank get_weather first: {idx:?}");
-        assert!(scores[0] >= scores[1] && scores[1] >= scores[2], "{scores:?}");
+        assert_eq!(
+            idx[0], 0,
+            "weather query should rank get_weather first: {idx:?}"
+        );
+        assert!(
+            scores[0] >= scores[1] && scores[1] >= scores[2],
+            "{scores:?}"
+        );
         needle_v2_free(h);
     }
 }
@@ -247,14 +273,27 @@ fn null_arguments_are_rejected() {
         let t = CString::new("[]").unwrap();
         assert!(needle_v2_run(ptr::null_mut(), q.as_ptr(), t.as_ptr()).is_null());
         assert!(needle_v2_run_json(ptr::null_mut(), q.as_ptr(), t.as_ptr()).is_null());
-        assert!(needle_v2_generate(ptr::null_mut(), q.as_ptr(), t.as_ptr(), 8, 0.0, 0, 0).is_null());
-        assert!(needle_v2_run_stream(ptr::null_mut(), q.as_ptr(), t.as_ptr(), None, ptr::null_mut())
-            .is_null());
+        assert!(
+            needle_v2_generate(ptr::null_mut(), q.as_ptr(), t.as_ptr(), 8, 0.0, 0, 0).is_null()
+        );
+        assert!(needle_v2_run_stream(
+            ptr::null_mut(),
+            q.as_ptr(),
+            t.as_ptr(),
+            None,
+            ptr::null_mut()
+        )
+        .is_null());
         assert_eq!(needle_v2_contrastive_dim(ptr::null_mut()), 0);
 
         let mut f = 0.0f32;
         assert!(!needle_v2_confidence(ptr::null_mut(), q.as_ptr(), &mut f));
-        assert!(!needle_v2_encode_contrastive(ptr::null_mut(), q.as_ptr(), &mut f, 1));
+        assert!(!needle_v2_encode_contrastive(
+            ptr::null_mut(),
+            q.as_ptr(),
+            &mut f,
+            1
+        ));
         assert_eq!(
             needle_v2_retrieve_tools(
                 ptr::null_mut(),

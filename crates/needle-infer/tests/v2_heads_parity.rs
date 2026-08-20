@@ -12,7 +12,10 @@
 use needle_infer::v2_engine::V2Engine;
 
 const CACT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../weights/needle2.cact");
-const VECTORS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/v2_heads_vectors.json");
+const VECTORS: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/v2_heads_vectors.json"
+);
 
 fn fixtures() -> Option<(V2Engine, serde_json::Value)> {
     for p in [CACT, VECTORS] {
@@ -24,18 +27,23 @@ fn fixtures() -> Option<(V2Engine, serde_json::Value)> {
             return None;
         }
     }
-    let v = serde_json::from_str(&std::fs::read_to_string(VECTORS).expect("read"))
-        .expect("parse");
+    let v = serde_json::from_str(&std::fs::read_to_string(VECTORS).expect("read")).expect("parse");
     Some((V2Engine::load(CACT).expect("load"), v))
 }
 
 fn f64s(v: &serde_json::Value) -> Vec<f64> {
-    v.as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect()
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x.as_f64().unwrap())
+        .collect()
 }
 
 #[test]
 fn contrastive_embeddings_match_reference() {
-    let Some((engine, v)) = fixtures() else { return };
+    let Some((engine, v)) = fixtures() else {
+        return;
+    };
     let dim = v["contrastive_dim"].as_u64().unwrap() as usize;
     assert_eq!(engine.contrastive_dim(), dim);
 
@@ -56,9 +64,16 @@ fn contrastive_embeddings_match_reference() {
             }
         }
         let norm: f32 = got.iter().map(|v| v * v).sum::<f32>().sqrt();
-        assert!((norm - 1.0).abs() < 1e-4, "not unit norm for {text:?}: {norm}");
+        assert!(
+            (norm - 1.0).abs() < 1e-4,
+            "not unit norm for {text:?}: {norm}"
+        );
 
-        let cos: f64 = got.iter().zip(want.iter()).map(|(a, b)| *a as f64 * b).sum();
+        let cos: f64 = got
+            .iter()
+            .zip(want.iter())
+            .map(|(a, b)| *a as f64 * b)
+            .sum();
         assert!(
             cos > 0.9999,
             "cosine {cos:.8} too low for {text:?} ({} tokens)",
@@ -71,7 +86,9 @@ fn contrastive_embeddings_match_reference() {
 
 #[test]
 fn confidence_logits_match_reference() {
-    let Some((engine, v)) = fixtures() else { return };
+    let Some((engine, v)) = fixtures() else {
+        return;
+    };
     let mut worst = 0.0f64;
     for c in v["cases"].as_array().unwrap() {
         let text = c["text"].as_str().unwrap();
@@ -96,7 +113,9 @@ fn confidence_logits_match_reference() {
 /// not the checkpoint's 256-token window.
 #[test]
 fn long_inputs_use_the_full_causal_window() {
-    let Some((engine, v)) = fixtures() else { return };
+    let Some((engine, v)) = fixtures() else {
+        return;
+    };
     assert_eq!(v["head_window"].as_u64().unwrap(), 0);
     assert_eq!(v["kv_window_lm"].as_u64().unwrap(), 256);
 
@@ -112,7 +131,11 @@ fn long_inputs_use_the_full_causal_window() {
         let text = c["text"].as_str().unwrap();
         let want = f64s(&c["contrastive"]);
         let got = engine.encode_contrastive(text).unwrap();
-        let cos: f64 = got.iter().zip(want.iter()).map(|(a, b)| *a as f64 * b).sum();
+        let cos: f64 = got
+            .iter()
+            .zip(want.iter())
+            .map(|(a, b)| *a as f64 * b)
+            .sum();
         assert!(
             cos > 0.9999,
             "cosine {cos:.8} at {} tokens — a 256-token window would land near 0.9996",
@@ -124,7 +147,9 @@ fn long_inputs_use_the_full_causal_window() {
 /// Retrieval should rank a tool's own description first for a matching query.
 #[test]
 fn retrieve_tools_ranks_sensibly() {
-    let Some((engine, _)) = fixtures() else { return };
+    let Some((engine, _)) = fixtures() else {
+        return;
+    };
     let tools = [
         "get_weather: Get current weather for a city",
         "send_email: Send an email to a recipient",
@@ -140,11 +165,17 @@ fn retrieve_tools_ranks_sensibly() {
     for (_, s) in &ranked {
         assert!((-1.001..=1.001).contains(s), "score out of range: {s}");
     }
-    assert_eq!(ranked[0].0, 0, "weather query should rank get_weather first: {ranked:?}");
+    assert_eq!(
+        ranked[0].0, 0,
+        "weather query should rank get_weather first: {ranked:?}"
+    );
 
     let ranked = engine.retrieve_tools("send a message to my colleague", &tools, 2);
     assert_eq!(ranked.len(), 2);
-    assert_eq!(ranked[0].0, 1, "email query should rank send_email first: {ranked:?}");
+    assert_eq!(
+        ranked[0].0, 1,
+        "email query should rank send_email first: {ranked:?}"
+    );
 }
 
 /// A shared head state must give the same answers as a fresh one per call, and
@@ -152,12 +183,16 @@ fn retrieve_tools_ranks_sensibly() {
 /// per description.
 #[test]
 fn shared_head_state_matches_per_call_state() {
-    let Some((engine, v)) = fixtures() else { return };
+    let Some((engine, v)) = fixtures() else {
+        return;
+    };
     let mut state = engine.new_head_state().expect("a probe head");
     for c in v["cases"].as_array().unwrap() {
         let text = c["text"].as_str().unwrap();
         let fresh = engine.encode_contrastive(text).unwrap();
-        let shared = engine.encode_contrastive_with_state(text, &mut state).unwrap();
+        let shared = engine
+            .encode_contrastive_with_state(text, &mut state)
+            .unwrap();
         assert_eq!(shared, fresh, "shared head state diverged on {text:?}");
 
         let cf = engine.confidence(text).unwrap();
@@ -170,7 +205,9 @@ fn shared_head_state_matches_per_call_state() {
 /// attention window.
 #[test]
 fn head_runs_do_not_affect_generation() {
-    let Some((engine, _)) = fixtures() else { return };
+    let Some((engine, _)) = fixtures() else {
+        return;
+    };
     const TOOLS: &str = r#"[{"name":"get_weather","parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}]"#;
     let before = engine.run("What's the weather in Paris?", TOOLS);
     let _ = engine.encode_contrastive("some unrelated text about flights");
@@ -189,12 +226,16 @@ fn head_runs_do_not_affect_generation() {
 /// magnitudes (which the parity vectors above already cover exactly).
 #[test]
 fn confidence_ranks_the_completion_not_the_query() {
-    let Some((engine, _)) = fixtures() else { return };
+    let Some((engine, _)) = fixtures() else {
+        return;
+    };
     let tools = r#"[{"name":"get_weather","description":"Get current weather for a city","parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}]"#;
     let query = "What's the weather in Paris?";
 
     let result = engine.run(query, tools);
-    let right = engine.confidence_for(query, tools, &result.text).expect("head present");
+    let right = engine
+        .confidence_for(query, tools, &result.text)
+        .expect("head present");
     let wrong = engine
         .confidence_for(
             query,
@@ -204,12 +245,21 @@ fn confidence_ranks_the_completion_not_the_query() {
         .expect("head present");
     let bare = engine.confidence_probability(query).expect("head present");
 
-    assert!(right > 0.5, "the model's own correct call should score high, got {right}");
-    assert!(wrong < 0.1, "a mismatched call should score low, got {wrong}");
+    assert!(
+        right > 0.5,
+        "the model's own correct call should score high, got {right}"
+    );
+    assert!(
+        wrong < 0.1,
+        "a mismatched call should score low, got {wrong}"
+    );
     assert!(right > wrong, "correct {right} must outrank wrong {wrong}");
     // The trap this test exists to catch: scoring the query alone looks like a
     // near-zero confidence for an answer the model in fact gets right.
-    assert!(bare < 0.05, "bare query is expected to be uninformative, got {bare}");
+    assert!(
+        bare < 0.05,
+        "bare query is expected to be uninformative, got {bare}"
+    );
     assert!(
         right > bare * 10.0,
         "prompt+completion ({right}) must be far above bare query ({bare})"

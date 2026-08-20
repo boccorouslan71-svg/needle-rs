@@ -12,7 +12,9 @@ use needle_infer::v2::V2Bundle;
 use std::time::Instant;
 
 fn main() {
-    let path = std::env::args().nth(1).unwrap_or_else(|| "weights/needle2.cact".into());
+    let path = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "weights/needle2.cact".into());
     let b = match V2Bundle::load(&path) {
         Ok(b) => b,
         Err(e) => {
@@ -25,8 +27,14 @@ fn main() {
     let mut batch = V2Batch::new(model, DEFAULT_CHUNK);
     let mut logits = vec![0.0f32; vocab];
 
-    println!("window = {}, chunk = {}", model.cfg.kv_window, DEFAULT_CHUNK);
-    println!("{:>7} {:>11} {:>12} {:>14}", "tokens", "prefill", "per token", "vs 32-tok rate");
+    println!(
+        "window = {}, chunk = {}",
+        model.cfg.kv_window, DEFAULT_CHUNK
+    );
+    println!(
+        "{:>7} {:>11} {:>12} {:>14}",
+        "tokens", "prefill", "per token", "vs 32-tok rate"
+    );
     let mut base = 0.0f64;
     for &n in &[32usize, 64, 128, 256, 512, 1024] {
         if n > model.cfg.max_seq_len {

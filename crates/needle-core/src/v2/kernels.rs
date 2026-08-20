@@ -105,7 +105,14 @@ pub fn silu(x: f32) -> f32 {
 /// `scratch` must be `hada_n` long; `x` and `out` are `d_model` long. `x` is
 /// zero-extended into the scratch when `hada_n > d_model`, which is the padding
 /// upstream applies.
-pub fn hadamard_mlp(x: &[f32], d1: &[f32], d2: &[f32], d3: &[f32], scratch: &mut [f32], out: &mut [f32]) {
+pub fn hadamard_mlp(
+    x: &[f32],
+    d1: &[f32],
+    d2: &[f32],
+    d3: &[f32],
+    scratch: &mut [f32],
+    out: &mut [f32],
+) {
     let n = scratch.len();
     let d = x.len();
     debug_assert!(n >= d && n.is_power_of_two());
@@ -327,7 +334,9 @@ mod tests {
 
     /// Row-vector times matrix: `out[j] = sum_k z[k] * m[k * n + j]`.
     fn matvec_row(z: &[f32], m: &[f32], n: usize) -> Vec<f32> {
-        (0..n).map(|j| (0..n).map(|k| z[k] * m[k * n + j]).sum()).collect()
+        (0..n)
+            .map(|j| (0..n).map(|k| z[k] * m[k * n + j]).sum())
+            .collect()
     }
 
     /// Transcription of `engram_indices` for one position, to check the hash and
@@ -340,7 +349,10 @@ mod tests {
         let tokens: [u32; 6] = [11, 250, 7, 4095, 1, 63];
         // Current position is the last token; step k back means tokens[len-1-k].
         let token_at = |k: usize| -> u32 {
-            tokens.get(tokens.len().wrapping_sub(1 + k)).copied().unwrap_or(0)
+            tokens
+                .get(tokens.len().wrapping_sub(1 + k))
+                .copied()
+                .unwrap_or(0)
         };
 
         let mut table = 0usize;
@@ -355,7 +367,11 @@ mod tests {
                 }
                 acc ^= acc >> 15;
                 let want = (acc % slots as u32) as usize;
-                assert_eq!(engram_index(table, order, slots, token_at), want, "table {table}");
+                assert_eq!(
+                    engram_index(table, order, slots, token_at),
+                    want,
+                    "table {table}"
+                );
                 table += 1;
             }
         }
@@ -367,7 +383,12 @@ mod tests {
     #[test]
     fn engram_index_varies_with_order_and_table() {
         let tokens = [5u32, 9, 13];
-        let at = |k: usize| tokens.get(tokens.len().wrapping_sub(1 + k)).copied().unwrap_or(0);
+        let at = |k: usize| {
+            tokens
+                .get(tokens.len().wrapping_sub(1 + k))
+                .copied()
+                .unwrap_or(0)
+        };
         let a = engram_index(0, 2, 8192, at);
         let b = engram_index(0, 3, 8192, at);
         let c = engram_index(1, 2, 8192, at);

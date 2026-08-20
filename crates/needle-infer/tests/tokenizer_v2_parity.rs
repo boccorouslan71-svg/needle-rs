@@ -14,7 +14,10 @@ use needle_infer::cact::Cact;
 use needle_infer::sp_tokenizer::{SpTokenizer, CHAT_MARKERS};
 
 const CACT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../weights/needle2.cact");
-const VECTORS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/tokenizer_vectors.json");
+const VECTORS: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/tokenizer_vectors.json"
+);
 
 /// Special-token ids `needle/model/tokenizer.py` documents for v2.
 const EXPECTED_MARKER_IDS: [u32; 10] = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -31,13 +34,21 @@ fn fixtures() -> Option<(SpTokenizer, serde_json::Value)> {
         serde_json::from_str(&std::fs::read_to_string(VECTORS).expect("read vectors"))
             .expect("parse vectors");
     let cact = Cact::load(CACT).expect("load cact");
-    let idx = cact.layout().expect("layout").tokenizer.expect("embedded tokenizer");
+    let idx = cact
+        .layout()
+        .expect("layout")
+        .tokenizer
+        .expect("embedded tokenizer");
     let blob = cact.raw_tensor(idx).expect("raw tokenizer");
     Some((SpTokenizer::from_blob(blob).expect("decode tokenizer"), v))
 }
 
 fn ids(v: &serde_json::Value) -> Vec<u32> {
-    v.as_array().unwrap().iter().map(|x| x.as_u64().unwrap() as u32).collect()
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x.as_u64().unwrap() as u32)
+        .collect()
 }
 
 #[test]
@@ -69,7 +80,11 @@ fn header_and_piece_table_match_reference() {
 fn chat_marker_ids_match_documented_values() {
     let Some((t, _)) = fixtures() else { return };
     let got = t.chat_marker_ids().expect("all ten chat markers present");
-    assert_eq!(got, EXPECTED_MARKER_IDS.to_vec(), "markers: {CHAT_MARKERS:?}");
+    assert_eq!(
+        got,
+        EXPECTED_MARKER_IDS.to_vec(),
+        "markers: {CHAT_MARKERS:?}"
+    );
     assert_eq!((t.pad_id, t.eos_id, t.bos_id, t.unk_id), (0, 1, 2, 3));
 }
 
@@ -77,7 +92,11 @@ fn chat_marker_ids_match_documented_values() {
 fn encode_matches_reference_exactly() {
     let Some((t, v)) = fixtures() else { return };
     let cases = v["cases"].as_array().unwrap();
-    assert!(cases.len() >= 40, "expected a broad corpus, got {}", cases.len());
+    assert!(
+        cases.len() >= 40,
+        "expected a broad corpus, got {}",
+        cases.len()
+    );
     for c in cases {
         let text = c["text"].as_str().unwrap();
         let want = ids(&c["ids"]);
@@ -101,7 +120,11 @@ fn decode_matches_reference_exactly() {
     }
     for c in v["decode_cases"].as_array().unwrap() {
         let seq = ids(&c["ids"]);
-        assert_eq!(t.decode(&seq), c["decoded"].as_str().unwrap(), "decode {seq:?}");
+        assert_eq!(
+            t.decode(&seq),
+            c["decoded"].as_str().unwrap(),
+            "decode {seq:?}"
+        );
     }
 }
 

@@ -22,7 +22,11 @@ fn engine() -> Option<V2Engine> {
 }
 
 fn opts(constrain: bool) -> GenerateOptions {
-    GenerateOptions { max_new_tokens: 80, constrain, ..Default::default() }
+    GenerateOptions {
+        max_new_tokens: 80,
+        constrain,
+        ..Default::default()
+    }
 }
 
 /// Pull every `"name":"..."` out of a tool-call payload.
@@ -44,7 +48,9 @@ fn names(payload: &str) -> Vec<String> {
 
 /// Pull the keys of the `arguments` object.
 fn arg_keys(payload: &str) -> Vec<String> {
-    let Some(i) = payload.find("\"arguments\":{") else { return Vec::new() };
+    let Some(i) = payload.find("\"arguments\":{") else {
+        return Vec::new();
+    };
     let mut rest = &payload[i + 13..];
     let mut out = Vec::new();
     // Keys are the quoted strings immediately after `{` or `,` at this depth.
@@ -98,11 +104,20 @@ const OPAQUE_TOOLS: &str = r#"[{"name":"zx_quibble_frobnicate","description":"Lo
 #[test]
 fn constrained_names_come_from_the_declared_tools() {
     let Some(e) = engine() else { return };
-    let r = e.generate("What's the weather in Paris?", ODD_TOOLS, &opts(true), |_, _| {});
+    let r = e.generate(
+        "What's the weather in Paris?",
+        ODD_TOOLS,
+        &opts(true),
+        |_, _| {},
+    );
     let payload = r.tool_call.clone().unwrap_or_default();
     eprintln!("constrained payload: {payload}");
     let got = names(&payload);
-    assert!(!got.is_empty(), "no tool name emitted; text was {:?}", r.text);
+    assert!(
+        !got.is_empty(),
+        "no tool name emitted; text was {:?}",
+        r.text
+    );
     for n in &got {
         assert_eq!(
             n, "qq_weather_lookup",
@@ -117,8 +132,18 @@ fn constrained_names_come_from_the_declared_tools() {
 #[test]
 fn an_unrecognised_tool_may_still_yield_an_empty_call() {
     let Some(e) = engine() else { return };
-    let free = e.generate("What's the weather in Paris?", OPAQUE_TOOLS, &opts(false), |_, _| {});
-    let bound = e.generate("What's the weather in Paris?", OPAQUE_TOOLS, &opts(true), |_, _| {});
+    let free = e.generate(
+        "What's the weather in Paris?",
+        OPAQUE_TOOLS,
+        &opts(false),
+        |_, _| {},
+    );
+    let bound = e.generate(
+        "What's the weather in Paris?",
+        OPAQUE_TOOLS,
+        &opts(true),
+        |_, _| {},
+    );
     eprintln!("unconstrained: {:?}", free.text);
     eprintln!("constrained:   {:?}", bound.text);
     // Whatever it decides, the constraint must not change it, and any name it
@@ -126,7 +151,10 @@ fn an_unrecognised_tool_may_still_yield_an_empty_call() {
     for n in names(&bound.tool_call.clone().unwrap_or_default()) {
         assert_eq!(n, "zx_quibble_frobnicate");
     }
-    assert_eq!(bound.text, free.text, "the constraint altered a no-call decision");
+    assert_eq!(
+        bound.text, free.text,
+        "the constraint altered a no-call decision"
+    );
 }
 
 /// The point of the constraint: the unconstrained run is free to invent a name,
@@ -135,8 +163,18 @@ fn an_unrecognised_tool_may_still_yield_an_empty_call() {
 #[test]
 fn constraint_is_what_forces_the_odd_name() {
     let Some(e) = engine() else { return };
-    let free = e.generate("What's the weather in Paris?", ODD_TOOLS, &opts(false), |_, _| {});
-    let bound = e.generate("What's the weather in Paris?", ODD_TOOLS, &opts(true), |_, _| {});
+    let free = e.generate(
+        "What's the weather in Paris?",
+        ODD_TOOLS,
+        &opts(false),
+        |_, _| {},
+    );
+    let bound = e.generate(
+        "What's the weather in Paris?",
+        ODD_TOOLS,
+        &opts(true),
+        |_, _| {},
+    );
     let free_names = names(&free.tool_call.clone().unwrap_or_default());
     let bound_names = names(&bound.tool_call.clone().unwrap_or_default());
     eprintln!("unconstrained names: {free_names:?}");
@@ -156,7 +194,12 @@ fn constraint_is_what_forces_the_odd_name() {
 #[test]
 fn constrained_argument_keys_come_from_the_schema() {
     let Some(e) = engine() else { return };
-    let r = e.generate("What's the weather in Berlin?", ODD_TOOLS, &opts(true), |_, _| {});
+    let r = e.generate(
+        "What's the weather in Berlin?",
+        ODD_TOOLS,
+        &opts(true),
+        |_, _| {},
+    );
     let payload = r.tool_call.clone().unwrap_or_default();
     eprintln!("payload: {payload}");
     let keys = arg_keys(&payload);
@@ -182,7 +225,12 @@ fn constrained_argument_keys_come_from_the_schema() {
 #[test]
 fn no_key_repeats_while_another_remains_unused() {
     let Some(e) = engine() else { return };
-    let r = e.generate("What's the weather in Berlin?", ODD_TOOLS, &opts(true), |_, _| {});
+    let r = e.generate(
+        "What's the weather in Berlin?",
+        ODD_TOOLS,
+        &opts(true),
+        |_, _| {},
+    );
     let payload = r.tool_call.clone().unwrap_or_default();
     let keys = arg_keys(&payload);
     eprintln!("payload: {payload}");
@@ -217,7 +265,10 @@ fn constraint_is_inert_on_conventional_tools() {
     for q in ["What's the weather in Paris?", "Is it raining in Tokyo?"] {
         let free = e.generate(q, TOOLS, &opts(false), |_, _| {});
         let bound = e.generate(q, TOOLS, &opts(true), |_, _| {});
-        assert_eq!(bound.text, free.text, "constraint changed the output for {q:?}");
+        assert_eq!(
+            bound.text, free.text,
+            "constraint changed the output for {q:?}"
+        );
     }
 }
 
@@ -237,7 +288,10 @@ fn constrained_selection_across_several_tools() {
         eprintln!("{q:?} -> {got:?}");
         assert!(!got.is_empty(), "no name for {q:?}; text {:?}", r.text);
         for n in &got {
-            assert!(valid.contains(&n.as_str()), "undeclared name {n:?} for {q:?}");
+            assert!(
+                valid.contains(&n.as_str()),
+                "undeclared name {n:?} for {q:?}"
+            );
         }
     }
 }
@@ -247,12 +301,19 @@ fn constrained_selection_across_several_tools() {
 fn constrained_output_terminates_and_is_well_formed() {
     let Some(e) = engine() else { return };
     let r = e.generate("Weather in Cairo?", ODD_TOOLS, &opts(true), |_, _| {});
-    assert!(r.stopped_naturally(), "did not terminate: {:?}", r.stop_reason);
+    assert!(
+        r.stopped_naturally(),
+        "did not terminate: {:?}",
+        r.stop_reason
+    );
     let payload = r.tool_call.expect("tool call present");
     let opens = payload.bytes().filter(|&b| b == b'{').count();
     let closes = payload.bytes().filter(|&b| b == b'}').count();
     assert_eq!(opens, closes, "unbalanced braces in {payload}");
-    assert!(payload.starts_with('['), "payload should be an array: {payload}");
+    assert!(
+        payload.starts_with('['),
+        "payload should be an array: {payload}"
+    );
 }
 
 /// An empty tool list must disable the constraint rather than forbid everything.
@@ -260,6 +321,11 @@ fn constrained_output_terminates_and_is_well_formed() {
 fn empty_tool_list_leaves_decoding_free() {
     let Some(e) = engine() else { return };
     let bound = e.generate("What's the weather in Paris?", "[]", &opts(true), |_, _| {});
-    let free = e.generate("What's the weather in Paris?", "[]", &opts(false), |_, _| {});
+    let free = e.generate(
+        "What's the weather in Paris?",
+        "[]",
+        &opts(false),
+        |_, _| {},
+    );
     assert_eq!(bound.text, free.text);
 }

@@ -15,7 +15,9 @@ const QUERIES: &[&str] = &[
 ];
 
 fn main() {
-    let path = std::env::args().nth(1).unwrap_or_else(|| "weights/needle2.cact".into());
+    let path = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "weights/needle2.cact".into());
 
     let t0 = Instant::now();
     let engine = match V2Engine::load(&path) {
@@ -31,14 +33,22 @@ fn main() {
     println!(
         "loaded {path} in {load_ms:.0} ms\n  \
          d_model {} | layers {} | heads {}/{} | vocab {} | kv_window {} | engram sites {:?}",
-        cfg.d_model, cfg.num_layers, cfg.num_heads, cfg.num_kv_heads, cfg.vocab_size,
-        cfg.kv_window, cfg.engram.sites
+        cfg.d_model,
+        cfg.num_layers,
+        cfg.num_heads,
+        cfg.num_kv_heads,
+        cfg.vocab_size,
+        cfg.kv_window,
+        cfg.engram.sites
     );
     if let Some(t) = engine.tokenizer() {
         println!("  embedded tokenizer: {} pieces", t.vocab_size());
     }
 
-    let opts = GenerateOptions { max_new_tokens: 64, ..Default::default() };
+    let opts = GenerateOptions {
+        max_new_tokens: 64,
+        ..Default::default()
+    };
     let mut total_steps = 0usize;
     let mut total_ms = 0.0f64;
 
@@ -69,7 +79,11 @@ fn main() {
             "   prefill {} tok in {first_token_ms:.0} ms | decode {gen} tok in {decode_ms:.0} ms \
              ({:.0} tok/s) | total {ms:.0} ms | stop={:?}",
             r.prompt_tokens,
-            if gen > 1 { (gen - 1) as f64 / (decode_ms / 1e3) } else { 0.0 },
+            if gen > 1 {
+                (gen - 1) as f64 / (decode_ms / 1e3)
+            } else {
+                0.0
+            },
             r.stop_reason
         );
         total_steps += r.prompt_tokens + gen;

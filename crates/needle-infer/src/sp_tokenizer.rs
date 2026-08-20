@@ -60,7 +60,11 @@ pub enum TokenizerError {
     /// `n_pieces` is zero.
     Empty,
     /// A special id from the header is not a valid piece index.
-    SpecialIdOutOfRange { name: &'static str, id: u32, n_pieces: usize },
+    SpecialIdOutOfRange {
+        name: &'static str,
+        id: u32,
+        n_pieces: usize,
+    },
     /// A `TK_BYTE` piece is not of the form `<0xNN>`.
     MalformedBytePiece { piece: usize },
 }
@@ -74,7 +78,10 @@ impl fmt::Display for TokenizerError {
             Self::InvalidUtf8 { piece } => write!(f, "piece {piece} is not valid UTF-8"),
             Self::Empty => write!(f, "tokenizer blob declares zero pieces"),
             Self::SpecialIdOutOfRange { name, id, n_pieces } => {
-                write!(f, "header {name}={id} is outside the {n_pieces}-piece table")
+                write!(
+                    f,
+                    "header {name}={id} is outside the {n_pieces}-piece table"
+                )
             }
             Self::MalformedBytePiece { piece } => {
                 write!(f, "byte piece {piece} is not of the form <0xNN>")
@@ -108,7 +115,10 @@ impl SpTokenizer {
     /// Decode the RAW tokenizer blob from a `.cact` file.
     pub fn from_blob(blob: &[u8]) -> Result<Self, TokenizerError> {
         if blob.len() < HDR_BYTES {
-            return Err(TokenizerError::Truncated { need: HDR_BYTES, got: blob.len() });
+            return Err(TokenizerError::Truncated {
+                need: HDR_BYTES,
+                got: blob.len(),
+            });
         }
         let u32_at = |o: usize| -> u32 {
             u32::from_le_bytes([blob[o], blob[o + 1], blob[o + 2], blob[o + 3]])
@@ -127,14 +137,21 @@ impl SpTokenizer {
         let mut off = HDR_BYTES;
         for i in 0..n_pieces {
             if off + REC_FIXED > blob.len() {
-                return Err(TokenizerError::Truncated { need: off + REC_FIXED, got: blob.len() });
+                return Err(TokenizerError::Truncated {
+                    need: off + REC_FIXED,
+                    got: blob.len(),
+                });
             }
-            let score = f32::from_le_bytes([blob[off], blob[off + 1], blob[off + 2], blob[off + 3]]);
+            let score =
+                f32::from_le_bytes([blob[off], blob[off + 1], blob[off + 2], blob[off + 3]]);
             let ty = blob[off + 4];
             let len = u16::from_le_bytes([blob[off + 5], blob[off + 6]]) as usize;
             off += REC_FIXED;
             if off + len > blob.len() {
-                return Err(TokenizerError::Truncated { need: off + len, got: blob.len() });
+                return Err(TokenizerError::Truncated {
+                    need: off + len,
+                    got: blob.len(),
+                });
             }
             let surface = std::str::from_utf8(&blob[off..off + len])
                 .map_err(|_| TokenizerError::InvalidUtf8 { piece: i })?
@@ -145,7 +162,12 @@ impl SpTokenizer {
             types.push(ty);
         }
 
-        for (name, id) in [("pad", pad_id), ("eos", eos_id), ("bos", bos_id), ("unk", unk_id)] {
+        for (name, id) in [
+            ("pad", pad_id),
+            ("eos", eos_id),
+            ("bos", bos_id),
+            ("unk", unk_id),
+        ] {
             if id as usize >= n_pieces {
                 return Err(TokenizerError::SpecialIdOutOfRange { name, id, n_pieces });
             }
@@ -164,7 +186,9 @@ impl SpTokenizer {
                 continue;
             }
             // Surfaces look like `<0xNN>`; upstream slices `p[3:5]`.
-            let hex = p.get(3..5).ok_or(TokenizerError::MalformedBytePiece { piece: i })?;
+            let hex = p
+                .get(3..5)
+                .ok_or(TokenizerError::MalformedBytePiece { piece: i })?;
             let b = u8::from_str_radix(hex, 16)
                 .map_err(|_| TokenizerError::MalformedBytePiece { piece: i })?;
             byte_to_id[b as usize] = Some(i as u32);
@@ -366,7 +390,9 @@ impl SpTokenizer {
     pub fn decode(&self, ids: &[u32]) -> String {
         let mut buf: Vec<u8> = Vec::new();
         for &id in ids {
-            let Some(&ty) = self.types.get(id as usize) else { continue };
+            let Some(&ty) = self.types.get(id as usize) else {
+                continue;
+            };
             match ty {
                 TK_BYTE => {
                     let p = &self.pieces[id as usize];
@@ -438,8 +464,10 @@ mod tests {
         ];
         // Byte pieces for the whole range, so byte_fallback always resolves.
         let hex: Vec<String> = (0..256).map(|b| format!("<0x{b:02X}>")).collect();
-        let leaked: Vec<&'static str> =
-            hex.into_iter().map(|s| Box::leak(s.into_boxed_str()) as &'static str).collect();
+        let leaked: Vec<&'static str> = hex
+            .into_iter()
+            .map(|s| Box::leak(s.into_boxed_str()) as &'static str)
+            .collect();
         for s in &leaked {
             p.push((s, -50.0, TK_BYTE));
         }
@@ -497,7 +525,14 @@ mod tests {
         // Multi-byte characters fall back per byte.
         let ids = t.encode("\u{20AC}"); // euro sign, 3 bytes
         assert_eq!(ids.len(), 4);
-        assert_eq!(ids[1..], [t.id_of("<0xE2>").unwrap(), t.id_of("<0x82>").unwrap(), t.id_of("<0xAC>").unwrap()]);
+        assert_eq!(
+            ids[1..],
+            [
+                t.id_of("<0xE2>").unwrap(),
+                t.id_of("<0x82>").unwrap(),
+                t.id_of("<0xAC>").unwrap()
+            ]
+        );
     }
 
     #[test]
@@ -534,7 +569,10 @@ mod tests {
             let from_table = String::from_utf8_lossy(&table[id as usize]).to_string();
             match t.piece_type(id) {
                 Some(TK_CONTROL) | Some(TK_UNKNOWN) => {
-                    assert!(table[id as usize].is_empty(), "id {id} should contribute nothing");
+                    assert!(
+                        table[id as usize].is_empty(),
+                        "id {id} should contribute nothing"
+                    );
                 }
                 Some(TK_BYTE) => {
                     assert_eq!(table[id as usize].len(), 1, "id {id} is one raw byte");
@@ -563,13 +601,20 @@ mod tests {
             Err(TokenizerError::Truncated { .. })
         ));
         let empty = blob(&[], true, false, (0, 0, 0, 0));
-        assert_eq!(SpTokenizer::from_blob(&empty).err(), Some(TokenizerError::Empty));
+        assert_eq!(
+            SpTokenizer::from_blob(&empty).err(),
+            Some(TokenizerError::Empty)
+        );
 
         // A special id past the end of the piece table.
         let bad_special = blob(&[("a", 0.0, TK_NORMAL)], true, false, (0, 9, 0, 0));
         assert_eq!(
             SpTokenizer::from_blob(&bad_special).err(),
-            Some(TokenizerError::SpecialIdOutOfRange { name: "eos", id: 9, n_pieces: 1 })
+            Some(TokenizerError::SpecialIdOutOfRange {
+                name: "eos",
+                id: 9,
+                n_pieces: 1
+            })
         );
 
         // A byte piece that is not <0xNN>.

@@ -51,24 +51,52 @@ pub const TENSORS_PER_ENGRAM_SITE: usize = 4;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CactError {
-    TooShort { need: usize, got: usize },
+    TooShort {
+        need: usize,
+        got: usize,
+    },
     BadTag(u32),
     BadCodebookLen(usize),
     /// A directory record points outside the file.
-    BlobOutOfRange { index: usize, offset: u64, nbytes: u64, file: usize },
-    BadNdim { index: usize, ndim: u8 },
+    BlobOutOfRange {
+        index: usize,
+        offset: u64,
+        nbytes: u64,
+        file: usize,
+    },
+    BadNdim {
+        index: usize,
+        ndim: u8,
+    },
     /// Tensor `index` has dtype `got` where the caller needed `want`.
-    DtypeMismatch { index: usize, want: u8, got: u8 },
+    DtypeMismatch {
+        index: usize,
+        want: u8,
+        got: u8,
+    },
     /// Byte length is not a whole number of elements for the dtype.
-    RaggedBlob { index: usize, nbytes: u64 },
+    RaggedBlob {
+        index: usize,
+        nbytes: u64,
+    },
     /// The canon needs more tensors than the directory holds.
-    TensorCountTooSmall { need: usize, got: usize },
+    TensorCountTooSmall {
+        need: usize,
+        got: usize,
+    },
     /// A canon slot has a shape the header geometry does not predict.
-    ShapeMismatch { index: usize, what: &'static str, want: [usize; 4], got: [usize; 4] },
+    ShapeMismatch {
+        index: usize,
+        what: &'static str,
+        want: [usize; 4],
+        got: [usize; 4],
+    },
     /// Geometry field that cannot be zero, is.
     BadGeometry(&'static str),
     /// `heads.manifest` length is not consistent with the trailing tensor count.
-    BadHeadManifest { extra: usize },
+    BadHeadManifest {
+        extra: usize,
+    },
     /// Unrecognised head code in `heads.manifest`.
     UnknownHeadCode(u8),
     Cq(cq::CqError),
@@ -92,7 +120,12 @@ impl fmt::Display for CactError {
                 "header codebook is {n} floats, want {} (cb2|cb3|cb4)",
                 cq::CODEBOOK_LEN
             ),
-            Self::BlobOutOfRange { index, offset, nbytes, file } => write!(
+            Self::BlobOutOfRange {
+                index,
+                offset,
+                nbytes,
+                file,
+            } => write!(
                 f,
                 "tensor {index} spans {offset}..{} but the file is {file} bytes",
                 offset + nbytes
@@ -104,13 +137,21 @@ impl fmt::Display for CactError {
                 write!(f, "tensor {index} has dtype {got}, want {want}")
             }
             Self::RaggedBlob { index, nbytes } => {
-                write!(f, "tensor {index} has {nbytes} bytes, not a whole element count")
+                write!(
+                    f,
+                    "tensor {index} has {nbytes} bytes, not a whole element count"
+                )
             }
             Self::TensorCountTooSmall { need, got } => write!(
                 f,
                 "the canon for this geometry needs {need} tensors, directory has {got}"
             ),
-            Self::ShapeMismatch { index, what, want, got } => write!(
+            Self::ShapeMismatch {
+                index,
+                what,
+                want,
+                got,
+            } => write!(
                 f,
                 "tensor {index} ({what}): shape {got:?} does not match geometry {want:?}"
             ),
@@ -240,7 +281,10 @@ pub struct Record {
 impl Record {
     /// Element count implied by `shape[..ndim]`.
     pub fn numel(&self) -> usize {
-        self.shape[..self.ndim as usize].iter().product::<usize>().max(1)
+        self.shape[..self.ndim as usize]
+            .iter()
+            .product::<usize>()
+            .max(1)
     }
 }
 
@@ -261,7 +305,10 @@ impl Cact {
 
     pub fn from_bytes(raw: Vec<u8>) -> Result<Self, CactError> {
         if raw.len() < HEADER_BYTES {
-            return Err(CactError::TooShort { need: HEADER_BYTES, got: raw.len() });
+            return Err(CactError::TooShort {
+                need: HEADER_BYTES,
+                got: raw.len(),
+            });
         }
         let u = |i: usize| -> u32 {
             u32::from_le_bytes([raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2], raw[i * 4 + 3]])
@@ -308,7 +355,10 @@ impl Cact {
         let dir_start = HEADER_BYTES + codebook_len * 4;
         let dir_end = dir_start + num_tensors * REC_BYTES;
         if raw.len() < dir_end {
-            return Err(CactError::TooShort { need: dir_end, got: raw.len() });
+            return Err(CactError::TooShort {
+                need: dir_end,
+                got: raw.len(),
+            });
         }
 
         let codebook: Vec<f32> = raw[HEADER_BYTES..dir_start]
@@ -341,7 +391,12 @@ impl Cact {
             let rec = Record {
                 dtype: b[0],
                 ndim,
-                shape: [g32(4) as usize, g32(8) as usize, g32(12) as usize, g32(16) as usize],
+                shape: [
+                    g32(4) as usize,
+                    g32(8) as usize,
+                    g32(12) as usize,
+                    g32(16) as usize,
+                ],
                 offset: g64(20),
                 nbytes: g64(28),
                 group: g32(36) as usize,
@@ -359,7 +414,12 @@ impl Cact {
             records.push(rec);
         }
 
-        Ok(Self { raw, geom, codebook, records })
+        Ok(Self {
+            raw,
+            geom,
+            codebook,
+            records,
+        })
     }
 
     pub fn num_tensors(&self) -> usize {
@@ -391,7 +451,10 @@ impl Cact {
         match r.dtype {
             DT_FP16 => {
                 if !r.nbytes.is_multiple_of(2) {
-                    return Err(CactError::RaggedBlob { index: i, nbytes: r.nbytes });
+                    return Err(CactError::RaggedBlob {
+                        index: i,
+                        nbytes: r.nbytes,
+                    });
                 }
                 Ok(blob
                     .chunks_exact(2)
@@ -400,14 +463,21 @@ impl Cact {
             }
             DT_FP32 => {
                 if !r.nbytes.is_multiple_of(4) {
-                    return Err(CactError::RaggedBlob { index: i, nbytes: r.nbytes });
+                    return Err(CactError::RaggedBlob {
+                        index: i,
+                        nbytes: r.nbytes,
+                    });
                 }
                 Ok(blob
                     .chunks_exact(4)
                     .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
                     .collect())
             }
-            got => Err(CactError::DtypeMismatch { index: i, want: DT_FP16, got }),
+            got => Err(CactError::DtypeMismatch {
+                index: i,
+                want: DT_FP16,
+                got,
+            }),
         }
     }
 
@@ -415,7 +485,11 @@ impl Cact {
     pub fn cq(&self, i: usize) -> Result<CqWeight, CactError> {
         let r = &self.records[i];
         if r.dtype != DT_CQ {
-            return Err(CactError::DtypeMismatch { index: i, want: DT_CQ, got: r.dtype });
+            return Err(CactError::DtypeMismatch {
+                index: i,
+                want: DT_CQ,
+                got: r.dtype,
+            });
         }
         Ok(CqWeight::from_blob(
             self.blob(i),
@@ -431,7 +505,11 @@ impl Cact {
     pub fn raw_tensor(&self, i: usize) -> Result<&[u8], CactError> {
         let r = &self.records[i];
         if r.dtype != DT_RAW {
-            return Err(CactError::DtypeMismatch { index: i, want: DT_RAW, got: r.dtype });
+            return Err(CactError::DtypeMismatch {
+                index: i,
+                want: DT_RAW,
+                got: r.dtype,
+            });
         }
         Ok(self.blob(i))
     }
@@ -512,8 +590,11 @@ impl CactLayout {
     fn derive(c: &Cact) -> Result<Self, CactError> {
         let g = &c.geom;
         let n_sites = g.engram_sites.len();
-        let through_final_norm =
-            1 + g.num_layers * TENSORS_PER_LAYER + MHC_TENSORS + n_sites * TENSORS_PER_ENGRAM_SITE + 1;
+        let through_final_norm = 1
+            + g.num_layers * TENSORS_PER_LAYER
+            + MHC_TENSORS
+            + n_sites * TENSORS_PER_ENGRAM_SITE
+            + 1;
         if c.num_tensors() < through_final_norm {
             return Err(CactError::TensorCountTooSmall {
                 need: through_final_norm,
@@ -606,7 +687,12 @@ impl CactLayout {
                 if code != HEAD_CONTRASTIVE && code != HEAD_CONFIDENCE {
                     return Err(CactError::UnknownHeadCode(code));
                 }
-                heads.push(HeadIdx { code, probes: i, proj: i + 1, bias: i + 2 });
+                heads.push(HeadIdx {
+                    code,
+                    probes: i,
+                    proj: i + 1,
+                    bias: i + 2,
+                });
                 i += 3;
             }
             (Some(manifest_idx), heads)
@@ -642,7 +728,12 @@ impl CactLayout {
             let mut got4 = [0usize; 4];
             got4[..got_ndim.min(4)].copy_from_slice(&r.shape[..got_ndim.min(4)]);
             if got_ndim != dims.len() || got4 != want4 {
-                return Err(CactError::ShapeMismatch { index: i, what, want: want4, got: got4 });
+                return Err(CactError::ShapeMismatch {
+                    index: i,
+                    what,
+                    want: want4,
+                    got: got4,
+                });
             }
             Ok(())
         };
@@ -676,10 +767,18 @@ impl CactLayout {
         // phi are stored transposed and flattened: [L*lanes, lanes*d_model].
         want(self.mhc.phi_pre, "mhc_phi_pre", &[l_ * n, g.mhc_width()])?;
         want(self.mhc.phi_post, "mhc_phi_post", &[l_ * n, g.mhc_width()])?;
-        want(self.mhc.phi_res, "mhc_phi_res", &[l_ * n * n, g.mhc_width()])?;
+        want(
+            self.mhc.phi_res,
+            "mhc_phi_res",
+            &[l_ * n * n, g.mhc_width()],
+        )?;
 
         for e in &self.engrams {
-            want(e.tables, "engram tables", &[g.num_engram_tables * g.engram_slots, g.engram_sub_dim])?;
+            want(
+                e.tables,
+                "engram tables",
+                &[g.num_engram_tables * g.engram_slots, g.engram_sub_dim],
+            )?;
             let e_in = g.num_engram_tables * g.engram_sub_dim;
             want(e.key_proj, "engram key_proj", &[d, e_in])?;
             want(e.value_proj, "engram value_proj", &[d, e_in])?;
@@ -690,12 +789,14 @@ impl CactLayout {
 
         for h in &self.heads {
             let probes = match c.record(h.probes).shape[0] {
-                0 => return Err(CactError::ShapeMismatch {
-                    index: h.probes,
-                    what: "head probes",
-                    want: [1, d, 0, 0],
-                    got: [0, 0, 0, 0],
-                }),
+                0 => {
+                    return Err(CactError::ShapeMismatch {
+                        index: h.probes,
+                        what: "head probes",
+                        want: [1, d, 0, 0],
+                        got: [0, 0, 0, 0],
+                    })
+                }
                 p => p,
             };
             want(h.probes, "head probes", &[probes, d])?;
@@ -825,9 +926,19 @@ mod tests {
             let vals: Vec<u16> = if with_heads && ti == shapes.len() - 7 {
                 vec![0x3C00, 0x4000] // 1.0, 2.0
             } else {
-                (0..numel).map(|k| 0x3C00u16.wrapping_add(k as u16)).collect()
+                (0..numel)
+                    .map(|k| 0x3C00u16.wrapping_add(k as u16))
+                    .collect()
             };
-            recs.push((DT_FP16, s.clone(), pos as u64, nbytes as u64, 0usize, 0u8, vals));
+            recs.push((
+                DT_FP16,
+                s.clone(),
+                pos as u64,
+                nbytes as u64,
+                0usize,
+                0u8,
+                vals,
+            ));
             pos += nbytes;
         }
         if with_tokenizer {
@@ -958,7 +1069,10 @@ mod tests {
     fn dtype_mismatch_is_reported() {
         let c = Cact::from_bytes(synth(1, false, true)).unwrap();
         let tok = c.layout().unwrap().tokenizer.unwrap();
-        assert!(matches!(c.floats(tok), Err(CactError::DtypeMismatch { .. })));
+        assert!(matches!(
+            c.floats(tok),
+            Err(CactError::DtypeMismatch { .. })
+        ));
         assert!(matches!(c.cq(0), Err(CactError::DtypeMismatch { .. })));
         assert_eq!(c.raw_tensor(tok).unwrap().len(), 16);
     }

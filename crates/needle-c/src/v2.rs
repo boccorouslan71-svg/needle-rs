@@ -76,10 +76,7 @@ pub unsafe extern "C" fn needle_v2_load(cact_path: *const c_char) -> *mut Needle
 /// # Safety
 /// `data` must point to `len` readable bytes.
 #[no_mangle]
-pub unsafe extern "C" fn needle_v2_load_bytes(
-    data: *const u8,
-    len: usize,
-) -> *mut NeedleV2Handle {
+pub unsafe extern "C" fn needle_v2_load_bytes(data: *const u8, len: usize) -> *mut NeedleV2Handle {
     clear_last_error();
     if data.is_null() {
         set_last_error("data is null");
@@ -115,8 +112,7 @@ pub unsafe extern "C" fn needle_v2_run(
     tools_json: *const c_char,
 ) -> *mut c_char {
     clear_last_error();
-    let (Some(engine), Some(q), Some(t)) =
-        (handle_ref(handle), cstr(query), cstr(tools_json))
+    let (Some(engine), Some(q), Some(t)) = (handle_ref(handle), cstr(query), cstr(tools_json))
     else {
         set_last_error("invalid arguments");
         return ptr::null_mut();
@@ -137,8 +133,7 @@ pub unsafe extern "C" fn needle_v2_run_json(
     tools_json: *const c_char,
 ) -> *mut c_char {
     clear_last_error();
-    let (Some(engine), Some(q), Some(t)) =
-        (handle_ref(handle), cstr(query), cstr(tools_json))
+    let (Some(engine), Some(q), Some(t)) = (handle_ref(handle), cstr(query), cstr(tools_json))
     else {
         set_last_error("invalid arguments");
         return ptr::null_mut();
@@ -165,14 +160,17 @@ pub unsafe extern "C" fn needle_v2_generate(
     constrain: i32,
 ) -> *mut c_char {
     clear_last_error();
-    let (Some(engine), Some(q), Some(t)) =
-        (handle_ref(handle), cstr(query), cstr(tools_json))
+    let (Some(engine), Some(q), Some(t)) = (handle_ref(handle), cstr(query), cstr(tools_json))
     else {
         set_last_error("invalid arguments");
         return ptr::null_mut();
     };
     let opts = GenerateOptions {
-        max_new_tokens: if max_new_tokens == 0 { 128 } else { max_new_tokens },
+        max_new_tokens: if max_new_tokens == 0 {
+            128
+        } else {
+            max_new_tokens
+        },
         temperature: temperature.max(0.0),
         seed,
         constrain: constrain != 0,
@@ -195,8 +193,7 @@ pub unsafe extern "C" fn needle_v2_run_stream(
     userdata: *mut c_void,
 ) -> *mut c_char {
     clear_last_error();
-    let (Some(engine), Some(q), Some(t)) =
-        (handle_ref(handle), cstr(query), cstr(tools_json))
+    let (Some(engine), Some(q), Some(t)) = (handle_ref(handle), cstr(query), cstr(tools_json))
     else {
         set_last_error("invalid arguments");
         return ptr::null_mut();
@@ -314,9 +311,12 @@ pub unsafe extern "C" fn needle_v2_confidence_for(
     out: *mut f32,
 ) -> bool {
     clear_last_error();
-    let (Some(engine), Some(q), Some(t), Some(c)) =
-        (handle_ref(handle), cstr(query), cstr(tools_json), cstr(completion))
-    else {
+    let (Some(engine), Some(q), Some(t), Some(c)) = (
+        handle_ref(handle),
+        cstr(query),
+        cstr(tools_json),
+        cstr(completion),
+    ) else {
         set_last_error("invalid arguments");
         return false;
     };

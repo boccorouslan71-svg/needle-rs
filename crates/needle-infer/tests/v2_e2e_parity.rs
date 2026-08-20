@@ -15,7 +15,10 @@
 use needle_infer::v2_engine::{GenerateOptions, V2Engine};
 
 const CACT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../weights/needle2.cact");
-const VECTORS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/v2_e2e_vectors.json");
+const VECTORS: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/v2_e2e_vectors.json"
+);
 
 struct Fixture {
     engine: V2Engine,
@@ -32,17 +35,27 @@ fn fixture() -> Option<Fixture> {
             return None;
         }
     }
-    let v = serde_json::from_str(&std::fs::read_to_string(VECTORS).expect("read"))
-        .expect("parse");
-    Some(Fixture { engine: V2Engine::load(CACT).expect("load"), v })
+    let v = serde_json::from_str(&std::fs::read_to_string(VECTORS).expect("read")).expect("parse");
+    Some(Fixture {
+        engine: V2Engine::load(CACT).expect("load"),
+        v,
+    })
 }
 
 fn ids(v: &serde_json::Value) -> Vec<u32> {
-    v.as_array().unwrap().iter().map(|x| x.as_u64().unwrap() as u32).collect()
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x.as_u64().unwrap() as u32)
+        .collect()
 }
 
 fn opts(max_new_tokens: usize, prefill_chunk: usize) -> GenerateOptions {
-    GenerateOptions { max_new_tokens, prefill_chunk, ..Default::default() }
+    GenerateOptions {
+        max_new_tokens,
+        prefill_chunk,
+        ..Default::default()
+    }
 }
 
 /// Exact token-for-token match on every case, at the default settings.
@@ -51,7 +64,11 @@ fn generated_tokens_match_reference_exactly() {
     let Some(f) = fixture() else { return };
     let max_new = f.v["max_new_tokens"].as_u64().unwrap() as usize;
     let cases = f.v["cases"].as_array().unwrap();
-    assert!(cases.len() >= 12, "expected a spread of cases, got {}", cases.len());
+    assert!(
+        cases.len() >= 12,
+        "expected a spread of cases, got {}",
+        cases.len()
+    );
 
     let mut total_prompt = 0usize;
     let mut total_gen = 0usize;
@@ -63,7 +80,9 @@ fn generated_tokens_match_reference_exactly() {
         let want = ids(&c["generated_ids"]);
         let want_prompt = c["prompt_tokens"].as_u64().unwrap() as usize;
 
-        let r = f.engine.generate(query, tools, &opts(max_new, 64), |_, _| {});
+        let r = f
+            .engine
+            .generate(query, tools, &opts(max_new, 64), |_, _| {});
         assert_eq!(
             r.prompt_tokens, want_prompt,
             "prompt tokenised differently for {query:?}"
@@ -76,7 +95,11 @@ fn generated_tokens_match_reference_exactly() {
             r.text,
             c["text"].as_str().unwrap()
         );
-        assert_eq!(r.text, c["text"].as_str().unwrap(), "text differs for {query:?}");
+        assert_eq!(
+            r.text,
+            c["text"].as_str().unwrap(),
+            "text differs for {query:?}"
+        );
 
         total_prompt += want_prompt;
         total_gen += want.len();
@@ -114,7 +137,9 @@ fn result_is_independent_of_prefill_chunk() {
         let tools = c["tools"].as_str().unwrap();
         let want = ids(&c["generated_ids"]);
         for chunk in [0usize, 1, 7, 32, 64, 128, 512] {
-            let r = f.engine.generate(query, tools, &opts(max_new, chunk), |_, _| {});
+            let r = f
+                .engine
+                .generate(query, tools, &opts(max_new, chunk), |_, _| {});
             assert_eq!(
                 r.token_ids, want,
                 "chunk={chunk} changed the result for {query:?} ({prompt_tokens} tokens)"
@@ -122,7 +147,10 @@ fn result_is_independent_of_prefill_chunk() {
         }
         checked += 1;
     }
-    assert!(checked >= 3, "expected several long cases, checked {checked}");
+    assert!(
+        checked >= 3,
+        "expected several long cases, checked {checked}"
+    );
 }
 
 /// Streaming must reconstruct exactly the text the non-streaming path returns.
@@ -135,11 +163,16 @@ fn streaming_reproduces_the_same_output() {
         let tools = c["tools"].as_str().unwrap();
         let mut streamed = String::new();
         let mut streamed_ids = Vec::new();
-        let r = f.engine.generate(query, tools, &opts(max_new, 64), |id, piece| {
-            streamed_ids.push(id);
-            streamed.push_str(piece);
-        });
-        assert_eq!(streamed_ids, r.token_ids, "streamed ids differ for {query:?}");
+        let r = f
+            .engine
+            .generate(query, tools, &opts(max_new, 64), |id, piece| {
+                streamed_ids.push(id);
+                streamed.push_str(piece);
+            });
+        assert_eq!(
+            streamed_ids, r.token_ids,
+            "streamed ids differ for {query:?}"
+        );
         assert_eq!(streamed, r.text, "streamed text differs for {query:?}");
     }
 }
@@ -156,7 +189,9 @@ fn shared_state_matches_fresh_state() {
         let query = c["query"].as_str().unwrap();
         let tools = c["tools"].as_str().unwrap();
         let want = ids(&c["generated_ids"]);
-        let r = f.engine.generate_with_state(query, tools, &opts(max_new, 64), &mut state, |_, _| {});
+        let r =
+            f.engine
+                .generate_with_state(query, tools, &opts(max_new, 64), &mut state, |_, _| {});
         assert_eq!(r.token_ids, want, "shared state diverged on {query:?}");
     }
 }

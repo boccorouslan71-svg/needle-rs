@@ -17,7 +17,7 @@ pub mod heads;
 pub mod kernels;
 pub mod model;
 
+pub use batch::{V2Batch, DEFAULT_CHUNK};
 pub use config::{EngramGeometry, V2Config};
 pub use heads::{ProbeHeadWeights, ProbePool, HEAD_CONFIDENCE, HEAD_CONTRASTIVE};
-pub use batch::{V2Batch, DEFAULT_CHUNK};
 pub use model::{V2Engram, V2Layer, V2Mhc, V2Model, V2State};

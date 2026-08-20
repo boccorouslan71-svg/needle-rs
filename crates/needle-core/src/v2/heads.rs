@@ -223,7 +223,12 @@ mod tests {
     use super::*;
 
     /// Batch reference: the softmax-then-average the streaming pool replaces.
-    fn pooled_reference(cells: &[Vec<f32>], probes: &[f32], num_probes: usize, d: usize) -> Vec<f32> {
+    fn pooled_reference(
+        cells: &[Vec<f32>],
+        probes: &[f32],
+        num_probes: usize,
+        d: usize,
+    ) -> Vec<f32> {
         let denom = math::sqrt(d as f32);
         let mut out = vec![0.0f32; num_probes * d];
         for k in 0..num_probes {
@@ -256,9 +261,12 @@ mod tests {
 
     #[test]
     fn streaming_pool_matches_batch_softmax() {
-        for &(n_cells, d, num_probes, scale) in
-            &[(28usize, 16usize, 4usize, 1.0f32), (200, 32, 8, 3.0), (1, 8, 2, 1.0), (2800, 16, 4, 2.0)]
-        {
+        for &(n_cells, d, num_probes, scale) in &[
+            (28usize, 16usize, 4usize, 1.0f32),
+            (200, 32, 8, 3.0),
+            (1, 8, 2, 1.0),
+            (2800, 16, 4, 2.0),
+        ] {
             let cells = synth(n_cells, d, scale);
             let probes: Vec<f32> = (0..num_probes * d)
                 .map(|i| (i as f32 * 0.031).cos() * 0.7)
@@ -367,7 +375,9 @@ mod tests {
         let h = ProbeHeadWeights {
             code: HEAD_CONTRASTIVE,
             probes: (0..p * d).map(|i| i as f32 * 0.01).collect(),
-            proj: (0..out_dim * p * d).map(|i| ((i * 13 % 29) as f32 - 14.0) * 0.05).collect(),
+            proj: (0..out_dim * p * d)
+                .map(|i| ((i * 13 % 29) as f32 - 14.0) * 0.05)
+                .collect(),
             bias: vec![0.0; out_dim],
             num_probes: p,
             out_dim,

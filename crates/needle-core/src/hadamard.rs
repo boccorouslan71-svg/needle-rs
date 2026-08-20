@@ -105,7 +105,9 @@ mod tests {
             let w = walsh_dense(n);
             // Non-symmetric under index reversal, so a transposed or
             // wrongly-ordered matrix would show up.
-            let x: Vec<f32> = (0..n).map(|i| ((i * 7 + i / 5) % 19) as f32 - 9.0).collect();
+            let x: Vec<f32> = (0..n)
+                .map(|i| ((i * 7 + i / 5) % 19) as f32 - 9.0)
+                .collect();
 
             let mut got = x.clone();
             fwht(&mut got);

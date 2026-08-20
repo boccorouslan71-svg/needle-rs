@@ -86,20 +86,31 @@ fn parse_args() -> Opts {
             "--constrain" => o.constrain = true,
             "--prefill-chunk" => {
                 let v = take(&raw, &mut i, "--prefill-chunk");
-                o.prefill_chunk =
-                    Some(v.parse().unwrap_or_else(|_| fail("--prefill-chunk must be an integer")));
+                o.prefill_chunk = Some(
+                    v.parse()
+                        .unwrap_or_else(|_| fail("--prefill-chunk must be an integer")),
+                );
             }
             "--max-tokens" => {
                 let v = take(&raw, &mut i, "--max-tokens");
-                o.max_tokens = Some(v.parse().unwrap_or_else(|_| fail("--max-tokens must be an integer")));
+                o.max_tokens = Some(
+                    v.parse()
+                        .unwrap_or_else(|_| fail("--max-tokens must be an integer")),
+                );
             }
             "--temperature" => {
                 let v = take(&raw, &mut i, "--temperature");
-                o.temperature = Some(v.parse().unwrap_or_else(|_| fail("--temperature must be a number")));
+                o.temperature = Some(
+                    v.parse()
+                        .unwrap_or_else(|_| fail("--temperature must be a number")),
+                );
             }
             "--seed" => {
                 let v = take(&raw, &mut i, "--seed");
-                o.seed = Some(v.parse().unwrap_or_else(|_| fail("--seed must be an integer")));
+                o.seed = Some(
+                    v.parse()
+                        .unwrap_or_else(|_| fail("--seed must be an integer")),
+                );
             }
             "--system" => o.system = Some(take(&raw, &mut i, "--system")),
             "--help" | "-h" => {
@@ -136,7 +147,8 @@ fn run_v2(o: &Opts, model: &str) {
     }
     let (query, tools) = (&o.positional[1], &o.positional[2]);
 
-    let engine = V2Engine::load(model).unwrap_or_else(|e| fail(&format!("Failed to load {model}: {e}")));
+    let engine =
+        V2Engine::load(model).unwrap_or_else(|e| fail(&format!("Failed to load {model}: {e}")));
     let opts = GenerateOptions {
         max_new_tokens: o.max_tokens.unwrap_or(128),
         temperature: o.temperature.unwrap_or(0.0),

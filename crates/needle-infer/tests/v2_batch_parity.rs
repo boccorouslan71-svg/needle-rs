@@ -31,7 +31,9 @@ fn bundle() -> Option<V2Bundle> {
 /// A deterministic token sequence of a given length, avoiding the special ids so
 /// nothing is treated as a control token.
 fn tokens(n: usize, vocab: usize) -> Vec<u32> {
-    (0..n).map(|i| (20 + (i * 4099 + i / 7) % (vocab - 40)) as u32).collect()
+    (0..n)
+        .map(|i| (20 + (i * 4099 + i / 7) % (vocab - 40)) as u32)
+        .collect()
 }
 
 fn sequential(model: &V2Model, toks: &[u32]) -> (Vec<f32>, Vec<f32>) {
@@ -186,7 +188,9 @@ fn batch_scratch_is_reusable() {
     let run = |toks: &[u32], batch: &mut V2Batch| {
         let mut state = model.make_state();
         let mut logits = vec![0.0f32; model.cfg.vocab_size];
-        model.prefill_batch(toks, &mut state, batch, Some(&mut logits)).unwrap();
+        model
+            .prefill_batch(toks, &mut state, batch, Some(&mut logits))
+            .unwrap();
         logits
     };
 

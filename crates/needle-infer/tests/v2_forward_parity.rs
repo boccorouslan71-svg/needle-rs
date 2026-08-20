@@ -20,8 +20,14 @@ use needle_infer::cact::Cact;
 use needle_infer::v2::V2Bundle;
 
 const CACT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../weights/needle2.cact");
-const JSON: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/v2_forward_vectors.json");
-const F32: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/v2_forward_vectors.f32");
+const JSON: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/v2_forward_vectors.json"
+);
+const F32: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/v2_forward_vectors.f32"
+);
 
 /// Per-capture-point tolerance, relative to the reference vector's own magnitude.
 ///
@@ -106,7 +112,9 @@ fn diff(got: &[f32], want: &[f32]) -> Option<(f32, f32, usize)> {
 /// Walk the ladder from the embedding outward and report the earliest divergence.
 #[test]
 fn forward_matches_reference_at_every_capture_point() {
-    let Some((bundle, fx)) = fixture() else { return };
+    let Some((bundle, fx)) = fixture() else {
+        return;
+    };
     let model = &bundle.model;
     let cfg = &model.cfg;
 
@@ -117,9 +125,15 @@ fn forward_matches_reference_at_every_capture_point() {
     assert_eq!(cfg.mhc_lanes, g["mhc_lanes"].as_u64().unwrap() as usize);
     assert_eq!(cfg.head_dim, g["head_dim"].as_u64().unwrap() as usize);
     assert_eq!(cfg.num_heads, g["num_heads"].as_u64().unwrap() as usize);
-    assert_eq!(cfg.num_kv_heads, g["num_kv_heads"].as_u64().unwrap() as usize);
+    assert_eq!(
+        cfg.num_kv_heads,
+        g["num_kv_heads"].as_u64().unwrap() as usize
+    );
     assert_eq!(cfg.vocab_size, g["vocab_size"].as_u64().unwrap() as usize);
-    assert_eq!(cfg.kv_window, fx.manifest["kv_window"].as_u64().unwrap() as usize);
+    assert_eq!(
+        cfg.kv_window,
+        fx.manifest["kv_window"].as_u64().unwrap() as usize
+    );
     assert_eq!(
         cfg.engram.sites,
         g["engram_layers"]
@@ -148,7 +162,9 @@ fn forward_matches_reference_at_every_capture_point() {
         // earlier tokens are fed untraced.
         let (last, prefix) = tokens.split_last().expect("step has tokens");
         for &t in prefix {
-            model.step(t, &mut state, &mut logits).expect("untraced step");
+            model
+                .step(t, &mut state, &mut logits)
+                .expect("untraced step");
         }
 
         let mut failures: Vec<String> = Vec::new();
@@ -221,7 +237,9 @@ fn forward_matches_reference_at_every_capture_point() {
 /// for token, and decode it to the same text through our own tokenizer.
 #[test]
 fn greedy_continuation_matches_reference() {
-    let Some((bundle, fx)) = fixture() else { return };
+    let Some((bundle, fx)) = fixture() else {
+        return;
+    };
     let model = &bundle.model;
     let mut state = model.make_state();
     let mut logits = vec![0.0f32; model.cfg.vocab_size];
@@ -253,7 +271,9 @@ fn greedy_continuation_matches_reference() {
 /// first one's context.
 #[test]
 fn reset_yields_identical_second_run() {
-    let Some((bundle, fx)) = fixture() else { return };
+    let Some((bundle, fx)) = fixture() else {
+        return;
+    };
     let model = &bundle.model;
     let prompt = ids(&fx.manifest["prompt_ids"]);
 
@@ -277,7 +297,9 @@ fn reset_yields_identical_second_run() {
 /// holds no hidden mutable state of its own.
 #[test]
 fn model_is_stateless_across_sequences() {
-    let Some((bundle, fx)) = fixture() else { return };
+    let Some((bundle, fx)) = fixture() else {
+        return;
+    };
     let model = &bundle.model;
     let prompt = ids(&fx.manifest["prompt_ids"]);
 
@@ -297,7 +319,11 @@ fn model_is_stateless_across_sequences() {
 }
 
 fn ids(v: &serde_json::Value) -> Vec<u32> {
-    v.as_array().unwrap().iter().map(|x| x.as_u64().unwrap() as u32).collect()
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x.as_u64().unwrap() as u32)
+        .collect()
 }
 
 fn argmax(x: &[f32]) -> usize {

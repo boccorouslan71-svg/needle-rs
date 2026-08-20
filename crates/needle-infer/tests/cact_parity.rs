@@ -47,11 +47,19 @@ fn probe_vector(n: usize, tensor_index: usize) -> Vec<f32> {
 }
 
 fn f64s(v: &serde_json::Value) -> Vec<f64> {
-    v.as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect()
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x.as_f64().unwrap())
+        .collect()
 }
 
 fn usizes(v: &serde_json::Value) -> Vec<usize> {
-    v.as_array().unwrap().iter().map(|x| x.as_u64().unwrap() as usize).collect()
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x.as_u64().unwrap() as usize)
+        .collect()
 }
 
 #[test]
@@ -75,10 +83,22 @@ fn header_matches_reference() {
     assert_eq!(g.hada_n, h["hada_n"].as_u64().unwrap() as usize);
     assert_eq!(g.mhc_lanes, h["mhc_lanes"].as_u64().unwrap() as usize);
     assert_eq!(g.engram_slots, h["engram_slots"].as_u64().unwrap() as usize);
-    assert_eq!(g.engram_sub_dim, h["engram_sub_dim"].as_u64().unwrap() as usize);
-    assert_eq!(g.num_engram_tables, h["num_engram_tables"].as_u64().unwrap() as usize);
-    assert_eq!(g.engram_conv_taps, h["engram_conv_taps"].as_u64().unwrap() as usize);
-    assert_eq!(g.engram_conv_dilation, h["engram_conv_dilation"].as_u64().unwrap() as usize);
+    assert_eq!(
+        g.engram_sub_dim,
+        h["engram_sub_dim"].as_u64().unwrap() as usize
+    );
+    assert_eq!(
+        g.num_engram_tables,
+        h["num_engram_tables"].as_u64().unwrap() as usize
+    );
+    assert_eq!(
+        g.engram_conv_taps,
+        h["engram_conv_taps"].as_u64().unwrap() as usize
+    );
+    assert_eq!(
+        g.engram_conv_dilation,
+        h["engram_conv_dilation"].as_u64().unwrap() as usize
+    );
     assert_eq!(g.engram_orders, usizes(&h["engram_orders"]));
     assert_eq!(g.engram_sites, usizes(&h["engram_sites"]));
     assert_eq!(g.rope_theta, h["rope_theta"].as_f64().unwrap() as f32);
@@ -97,11 +117,31 @@ fn directory_records_match_reference() {
     assert_eq!(c.num_tensors(), refs.len());
     for (i, r) in refs.iter().enumerate() {
         let rec = c.record(i);
-        assert_eq!(rec.dtype, r["dtype"].as_u64().unwrap() as u8, "tensor {i} dtype");
-        assert_eq!(rec.offset, r["offset"].as_u64().unwrap(), "tensor {i} offset");
-        assert_eq!(rec.nbytes, r["nbytes"].as_u64().unwrap(), "tensor {i} nbytes");
-        assert_eq!(rec.group, r["group"].as_u64().unwrap() as usize, "tensor {i} group");
-        assert_eq!(rec.bits, r["bits"].as_u64().unwrap() as u8, "tensor {i} bits");
+        assert_eq!(
+            rec.dtype,
+            r["dtype"].as_u64().unwrap() as u8,
+            "tensor {i} dtype"
+        );
+        assert_eq!(
+            rec.offset,
+            r["offset"].as_u64().unwrap(),
+            "tensor {i} offset"
+        );
+        assert_eq!(
+            rec.nbytes,
+            r["nbytes"].as_u64().unwrap(),
+            "tensor {i} nbytes"
+        );
+        assert_eq!(
+            rec.group,
+            r["group"].as_u64().unwrap() as usize,
+            "tensor {i} group"
+        );
+        assert_eq!(
+            rec.bits,
+            r["bits"].as_u64().unwrap() as u8,
+            "tensor {i} bits"
+        );
         let shape = usizes(&r["shape"]);
         assert_eq!(rec.ndim as usize, shape.len(), "tensor {i} ndim");
         assert_eq!(&rec.shape[..shape.len()], &shape[..], "tensor {i} shape");
@@ -125,14 +165,25 @@ fn layout_resolves_against_real_blob() {
     let mut all: Vec<usize> = vec![l.embedding, l.final_norm];
     for x in &l.layers {
         all.extend([
-            x.norm_in, x.q_proj, x.k_proj, x.v_proj, x.q_norm, x.k_norm, x.gate_proj,
-            x.out_proj, x.post_norm, x.attn_gate, x.pre_hada, x.d1, x.d2, x.d3,
+            x.norm_in,
+            x.q_proj,
+            x.k_proj,
+            x.v_proj,
+            x.q_norm,
+            x.k_norm,
+            x.gate_proj,
+            x.out_proj,
+            x.post_norm,
+            x.attn_gate,
+            x.pre_hada,
+            x.d1,
+            x.d2,
+            x.d3,
         ]);
     }
     let m = l.mhc;
     all.extend([
-        m.a_pre, m.a_post, m.a_res, m.b_pre, m.b_post, m.b_res, m.phi_pre, m.phi_post,
-        m.phi_res,
+        m.a_pre, m.a_post, m.a_res, m.b_pre, m.b_post, m.b_res, m.phi_pre, m.phi_post, m.phi_res,
     ]);
     for e in &l.engrams {
         all.extend([e.tables, e.key_proj, e.value_proj, e.taps]);
@@ -143,7 +194,11 @@ fn layout_resolves_against_real_blob() {
     }
     all.extend(l.tokenizer);
 
-    assert_eq!(all.len(), c.num_tensors(), "canon must cover every tensor exactly once");
+    assert_eq!(
+        all.len(),
+        c.num_tensors(),
+        "canon must cover every tensor exactly once"
+    );
     let mut sorted = all.clone();
     sorted.sort_unstable();
     sorted.dedup();
@@ -168,7 +223,11 @@ fn fp16_tensors_decode_to_reference_values() {
         }
         let got = c.floats(i).expect("decode floats");
         let st = &r["stats"];
-        assert_eq!(got.len(), st["numel"].as_u64().unwrap() as usize, "tensor {i} numel");
+        assert_eq!(
+            got.len(),
+            st["numel"].as_u64().unwrap() as usize,
+            "tensor {i} numel"
+        );
         assert_eq!(got.len(), c.record(i).numel(), "tensor {i} numel vs shape");
 
         // FP16 -> f32 is lossless, so first/last values must match exactly.
@@ -190,7 +249,10 @@ fn fp16_tensors_decode_to_reference_values() {
         );
         checked += 1;
     }
-    assert!(checked > 250, "expected the blob's ~259 FP16 tensors, checked {checked}");
+    assert!(
+        checked > 250,
+        "expected the blob's ~259 FP16 tensors, checked {checked}"
+    );
 }
 
 /// The load-bearing test. A CQ matvec exercises bit unpacking, group norms, the
@@ -206,7 +268,11 @@ fn cq_matvec_matches_reference_dequantized_product() {
         }
         let w = c.cq(i).unwrap_or_else(|e| panic!("tensor {i}: {e}"));
         let shape = usizes(&r["shape"]);
-        assert_eq!((w.out_feat, w.in_feat), (shape[0], shape[1]), "tensor {i} shape");
+        assert_eq!(
+            (w.out_feat, w.in_feat),
+            (shape[0], shape[1]),
+            "tensor {i} shape"
+        );
 
         let x = probe_vector(w.in_feat, i);
         let mut y = vec![0.0f32; w.out_feat];
@@ -241,7 +307,9 @@ fn cq_dequantize_row_matches_reference() {
     let Some((c, v)) = fixtures() else { return };
     let mut checked = 0;
     for (i, r) in v["tensors"].as_array().unwrap().iter().enumerate() {
-        let Some(rows) = r.get("rows").and_then(|x| x.as_object()) else { continue };
+        let Some(rows) = r.get("rows").and_then(|x| x.as_object()) else {
+            continue;
+        };
         let w = c.cq(i).unwrap();
         for (key, vals) in rows {
             let o: usize = key.parse().unwrap();
@@ -261,7 +329,10 @@ fn cq_dequantize_row_matches_reference() {
             checked += 1;
         }
     }
-    assert!(checked >= 20, "expected the curated full-row probes, checked {checked}");
+    assert!(
+        checked >= 20,
+        "expected the curated full-row probes, checked {checked}"
+    );
 }
 
 /// A prepared activation must be reusable across the projections that share it,
@@ -271,8 +342,12 @@ fn prepared_input_is_shared_across_layer_projections() {
     let Some((c, _)) = fixtures() else { return };
     let l = c.layout().unwrap();
     let li = l.layers[0];
-    let (q, k, val, gate) =
-        (c.cq(li.q_proj).unwrap(), c.cq(li.k_proj).unwrap(), c.cq(li.v_proj).unwrap(), c.cq(li.gate_proj).unwrap());
+    let (q, k, val, gate) = (
+        c.cq(li.q_proj).unwrap(),
+        c.cq(li.k_proj).unwrap(),
+        c.cq(li.v_proj).unwrap(),
+        c.cq(li.gate_proj).unwrap(),
+    );
 
     let x = probe_vector(c.geom.d_model, 12345);
     let mut xh = vec![0.0f32; q.prepared_len()];

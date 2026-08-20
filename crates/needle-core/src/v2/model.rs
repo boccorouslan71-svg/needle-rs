@@ -142,19 +142,19 @@ pub struct V2State {
     lanes_prev: Vec<f32>, // [lanes * d_model]  lane stream before the update
     nx: Vec<f32>,         // [lanes * d_model]  rms_unit of the lane stream
     nx_prep: Vec<f32>,
-    u: Vec<f32>,          // [d_model]  lane-mixed block input
-    bx: Vec<f32>,         // [d_model]  u plus the Engram contribution
-    y: Vec<f32>,          // [d_model]  block output, then block output minus u
-    h: Vec<f32>,          // [d_model]  normed sub-block input
+    u: Vec<f32>,  // [d_model]  lane-mixed block input
+    bx: Vec<f32>, // [d_model]  u plus the Engram contribution
+    y: Vec<f32>,  // [d_model]  block output, then block output minus u
+    h: Vec<f32>,  // [d_model]  normed sub-block input
     h_prep: Vec<f32>,
-    hpre: Vec<f32>,       // [lanes]
-    hpost: Vec<f32>,      // [lanes]
-    hres: Vec<f32>,       // [lanes * lanes]
-    q: Vec<f32>,          // [attn_dim]
-    k: Vec<f32>,          // [kv_dim]
-    v: Vec<f32>,          // [kv_dim]
-    gate: Vec<f32>,       // [attn_dim]
-    attn_out: Vec<f32>,   // [attn_dim]
+    hpre: Vec<f32>,     // [lanes]
+    hpost: Vec<f32>,    // [lanes]
+    hres: Vec<f32>,     // [lanes * lanes]
+    q: Vec<f32>,        // [attn_dim]
+    k: Vec<f32>,        // [kv_dim]
+    v: Vec<f32>,        // [kv_dim]
+    gate: Vec<f32>,     // [attn_dim]
+    attn_out: Vec<f32>, // [attn_dim]
     attn_prep: Vec<f32>,
     attn_result: Vec<f32>, // [d_model]  out_proj output
     scores: Vec<f32>,      // [max_seq_len]
@@ -165,7 +165,7 @@ pub struct V2State {
     engram_k: Vec<f32>,   // [sites * d_model]
     engram_val: Vec<f32>, // [sites * d_model]  after the tap convolution
     /// Last Engram gate value per site, kept for tracing.
-    alpha: Vec<f32>,      // [sites]
+    alpha: Vec<f32>, // [sites]
     lm: Vec<f32>,         // [d_model]  pooled, normed hidden state
     lm_prep: Vec<f32>,
     tmp_a: Vec<f32>, // [d_model]
@@ -236,7 +236,16 @@ impl V2Model {
 
         let rope = RopeCache::new(cfg.max_seq_len, cfg.head_dim, cfg.rope_theta);
         let embed_scale = math::sqrt(cfg.d_model as f32);
-        Ok(Self { cfg, embedding, layers, mhc, engrams, final_norm, rope, embed_scale })
+        Ok(Self {
+            cfg,
+            embedding,
+            layers,
+            mhc,
+            engrams,
+            final_norm,
+            rope,
+            embed_scale,
+        })
     }
 
     /// Where this port follows the decode reference rather than the training graph.
@@ -284,7 +293,10 @@ impl V2Model {
         let ring = (cfg.engram.window() + 1).max(1);
         let fetched = cfg.engram.fetched_dim().max(1);
 
-        let engram_prep = self.engrams.first().map_or(fetched, |e| e.value_proj.prepared_len());
+        let engram_prep = self
+            .engrams
+            .first()
+            .map_or(fetched, |e| e.value_proj.prepared_len());
 
         V2State {
             k_cache: (0..cfg.num_layers)
@@ -405,7 +417,8 @@ impl V2Model {
         state.history[pos] = token;
 
         // Lane stream starts as the scaled embedding, broadcast across lanes.
-        self.embedding.dequantize_row(token as usize, &mut state.tmp_a);
+        self.embedding
+            .dequantize_row(token as usize, &mut state.tmp_a);
         for v in state.tmp_a.iter_mut() {
             *v *= self.embed_scale;
         }
@@ -490,7 +503,9 @@ impl V2Model {
         rms_unit_to(&state.lanes, &mut state.nx);
         // phi_pre, phi_post and phi_res all read nx with identical geometry, so
         // the Hadamard rotation is paid once here and reused by mhc_post.
-        self.mhc.phi_pre.prepare_input(&state.nx, &mut state.nx_prep);
+        self.mhc
+            .phi_pre
+            .prepare_input(&state.nx, &mut state.nx_prep);
 
         self.mhc
             .phi_pre
@@ -513,7 +528,9 @@ impl V2Model {
 
     /// `bx = u + sigmoid(dot(rms_unit(u), rms_unit(ek)) / sqrt(d_model)) * ev`.
     fn engram_gate(&self, state: &mut V2State, li: usize) {
-        let Some(site) = self.cfg.engram.site_of_layer(li) else { return };
+        let Some(site) = self.cfg.engram.site_of_layer(li) else {
+            return;
+        };
         let d = self.cfg.d_model;
         let base = site * d;
 
@@ -574,7 +591,9 @@ impl V2Model {
         layer.q_proj.matvec_prepared(&state.h_prep, &mut state.q);
         layer.k_proj.matvec_prepared(&state.h_prep, &mut state.k);
         layer.v_proj.matvec_prepared(&state.h_prep, &mut state.v);
-        layer.gate_proj.matvec_prepared(&state.h_prep, &mut state.gate);
+        layer
+            .gate_proj
+            .matvec_prepared(&state.h_prep, &mut state.gate);
 
         for head in 0..h_n {
             zc_rms_norm_vec(&mut state.q[head * hd..(head + 1) * hd], &layer.q_norm);
@@ -634,7 +653,9 @@ impl V2Model {
         for (o, &g) in state.attn_out.iter_mut().zip(state.gate.iter()) {
             *o *= sigmoid(g);
         }
-        layer.out_proj.prepare_input(&state.attn_out, &mut state.attn_prep);
+        layer
+            .out_proj
+            .prepare_input(&state.attn_out, &mut state.attn_prep);
         layer
             .out_proj
             .matvec_prepared(&state.attn_prep, &mut state.attn_result);
@@ -651,8 +672,9 @@ impl V2Model {
             .matvec_rows_prepared(&state.nx_prep, li * n, &mut state.hpost);
         let a_post = self.mhc.a_post[li];
         for lane in 0..n {
-            let z =
-                a_post * state.hpost[lane] + self.mhc.b_post[li * n + lane] + cfg.post_off(li, lane);
+            let z = a_post * state.hpost[lane]
+                + self.mhc.b_post[li * n + lane]
+                + cfg.post_off(li, lane);
             state.hpost[lane] = 2.0 * sigmoid(z);
         }
 
@@ -698,7 +720,9 @@ impl V2Model {
         for site in 0..self.engrams.len() {
             self.engram_fetch(state, pos, site, heads);
             let weights = &self.engrams[site];
-            weights.value_proj.prepare_input(&state.e_buf, &mut state.e_prep);
+            weights
+                .value_proj
+                .prepare_input(&state.e_buf, &mut state.e_prep);
 
             // Un-convolved value at this position, into the ring.
             let slot = (site * ring + pos % ring) * d;
@@ -827,8 +851,10 @@ impl V2State {
         let w = window.unwrap_or(model.cfg.kv_window);
         let needed = if w == 0 { model.cfg.max_seq_len } else { w };
         if needed > self.cache_len {
-            return Err("requested attention window exceeds this state's KV capacity; \
-                        allocate with make_state_full_causal");
+            return Err(
+                "requested attention window exceeds this state's KV capacity; \
+                        allocate with make_state_full_causal",
+            );
         }
         self.kv_window = w;
         Ok(())
@@ -898,7 +924,11 @@ impl V2State {
 
     /// Bytes the KV cache occupies — the dominant part of a session.
     pub fn kv_bytes(&self) -> usize {
-        self.k_cache.iter().chain(self.v_cache.iter()).map(|c| c.len() * 4).sum()
+        self.k_cache
+            .iter()
+            .chain(self.v_cache.iter())
+            .map(|c| c.len() * 4)
+            .sum()
     }
 
     /// Start a new sequence, keeping the allocations.

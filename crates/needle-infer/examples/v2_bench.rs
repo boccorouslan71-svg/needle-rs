@@ -12,12 +12,18 @@ const TOOLS: &str = r#"[{"name":"get_weather","description":"Get current weather
 fn main() {
     let q = "What's the weather in Paris?";
     let t0 = Instant::now();
-    let path = std::env::args().nth(1).unwrap_or_else(|| "weights/needle2.cact".into());
+    let path = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "weights/needle2.cact".into());
     let e = V2Engine::load(&path).unwrap();
     println!("load: {:.0} ms", t0.elapsed().as_secs_f64() * 1e3);
     // Compare the batched prefill against the one-position-at-a-time reference.
     for chunk in [0usize, 8, 32, 64, 128, 256] {
-        let opts = GenerateOptions { max_new_tokens: 64, prefill_chunk: chunk, ..Default::default() };
+        let opts = GenerateOptions {
+            max_new_tokens: 64,
+            prefill_chunk: chunk,
+            ..Default::default()
+        };
         let mut best = f64::INFINITY;
         let mut ttft = 0.0;
         let mut r = None;
@@ -25,26 +31,41 @@ fn main() {
             let mut first = 0.0;
             let t = Instant::now();
             let res = e.generate(q, TOOLS, &opts, |_, _| {
-                if first == 0.0 { first = t.elapsed().as_secs_f64() * 1e3; }
+                if first == 0.0 {
+                    first = t.elapsed().as_secs_f64() * 1e3;
+                }
             });
             let ms = t.elapsed().as_secs_f64() * 1e3;
-            if ms < best { best = ms; ttft = first; r = Some(res); }
+            if ms < best {
+                best = ms;
+                ttft = first;
+                r = Some(res);
+            }
         }
         let r = r.unwrap();
-        let label = if chunk == 0 { "sequential".to_string() } else { format!("chunk={chunk}") };
+        let label = if chunk == 0 {
+            "sequential".to_string()
+        } else {
+            format!("chunk={chunk}")
+        };
         println!(
             "{label:>12}: total {best:.0} ms | prefill({} tok) {ttft:.0} ms = {:.2} ms/tok | decode {} tok {:.0} ms",
             r.prompt_tokens, ttft / r.prompt_tokens as f64, r.token_ids.len(), best - ttft
         );
     }
 
-    let opts = GenerateOptions { max_new_tokens: 64, ..Default::default() };
+    let opts = GenerateOptions {
+        max_new_tokens: 64,
+        ..Default::default()
+    };
     // Several runs: no JIT here, but let the page cache and branch predictors settle.
     for i in 0..5 {
         let mut ttft = 0.0;
         let t = Instant::now();
         let r = e.generate(q, TOOLS, &opts, |_, _| {
-            if ttft == 0.0 { ttft = t.elapsed().as_secs_f64() * 1e3; }
+            if ttft == 0.0 {
+                ttft = t.elapsed().as_secs_f64() * 1e3;
+            }
         });
         let ms = t.elapsed().as_secs_f64() * 1e3;
         println!(

@@ -442,9 +442,7 @@ mod tests {
     /// test, so this is the only place a divergence would surface.
     #[test]
     fn simd_matches_scalar_reference() {
-        for &(in_feat, out_feat) in
-            &[(32usize, 8usize), (64, 16), (512, 512), (100, 12), (33, 7)]
-        {
+        for &(in_feat, out_feat) in &[(32usize, 8usize), (64, 16), (512, 512), (100, 12), (33, 7)] {
             // Deterministic weights spanning positive and negative values.
             let w: Vec<f32> = (0..in_feat * out_feat)
                 .map(|i| ((i * 31 % 197) as f32 - 98.0) / 37.0)
