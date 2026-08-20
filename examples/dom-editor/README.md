@@ -1,8 +1,13 @@
 # DOM editor (browser)
 
-A real-life use case for needle-rs: a 22 MB tool-calling LLM that rewrites a
-live web page from plain-English commands, entirely in the browser. No server,
-no API key, no data leaving the tab.
+A real-life use case for needle-rs: a small tool-calling LLM that rewrites a live
+web page from plain-English commands, entirely in the browser. No server, no API
+key, no data leaving the tab.
+
+Runs on **either model version**. Needle v2 (one 13.7 MB `.cact` file) is the
+default; append `?model=v1` to the URL for Needle v1 (22 MB weights plus a
+vocabulary file). The worker exposes one interface over both, so the DOM walker
+and the tool harness never branch on which is loaded — see `src/worker.ts`.
 
 Type one command (`"make the title red"`, `"set the lede background to teal"`).
 The harness walks the current DOM, generates one tool per (element × action),
@@ -42,13 +47,24 @@ walk — the model can't wipe what someone is typing or scramble its own log.
 
 ## Quickstart
 
+The engine is this repo's own WebAssembly build, not an npm install, so build it
+first:
+
 ```bash
+# from the repo root
+wasm-pack build crates/needle-wasm --target web --release --out-dir ../../pkg/
+wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int \
+  pkg/needle_wasm_bg.wasm -o pkg/needle_wasm_bg.wasm   # optional: 462 -> 414 KB
+
 cd examples/dom-editor
 npm install
 npm run dev
 ```
 
-Open the printed URL, click **Load model** (22 MB, cached by the browser after
+`vite.config.ts` aliases the module name `needle-rs` to `../../pkg`, so the
+source imports it exactly as an npm consumer would.
+
+Open the printed URL, click **Load model** (13.7 MB for v2, cached by the browser after
 the first run), then chain commands. The right-hand panel shows every tool
 generated for the current command, with the top-K candidates highlighted and
 the picked one marked in green.
@@ -85,7 +101,7 @@ src/
 
 ## Caveats
 
-This is a 26M-parameter router. It is good at single, clear commands and bad
+This is a tiny router — 45M parameters on v2, 26M on v1. It is good at single, clear commands and bad
 at compound or ambiguous ones. The on-screen "Limitations" panel explains
 what the model can and can't do — the same caveats apply to any production
 use of needle-rs.

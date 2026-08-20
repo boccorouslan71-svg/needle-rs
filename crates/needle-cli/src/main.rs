@@ -1,86 +1,213 @@
+use needle_infer::v2_engine::{GenerateOptions, V2Engine};
 use needle_infer::NeedleEngine;
 use std::env;
 use std::io::Write as IoWrite;
 use std::process;
 
 const USAGE: &str = "\
-Usage: needle-rs [OPTIONS] <weights.safetensors> <vocab.txt> <query> <tools_json>
+Usage:
+  needle-rs [OPTIONS] <model.cact> <query> <tools_json>                 (Needle v2)
+  needle-rs [OPTIONS] <weights.safetensors> <vocab.txt> <query> <tools_json>   (v1)
+
+The model version is taken from the file: a `.cact` container carries its own
+geometry and tokenizer, so it needs no vocabulary argument. A `.safetensors`
+file is the v1 format and needs one.
 
 Arguments:
-  weights     Path to .safetensors weight file
-  vocab       Path to vocabulary text file (one piece per line)
+  model       Path to a .cact container (v2) or .safetensors weights (v1)
+  vocab       v1 only: vocabulary text file, one piece per line
   query       User query string
   tools       JSON array of tool definitions
 
 Options:
-  --stream    Print each token to stderr as it is generated; final JSON to stdout
-  --help      Print this message
+  --stream            Print each token to stderr as generated; result to stdout
+  --max-tokens <N>    Generation cap (v2 only, default 128)
+  --temperature <T>   0 for greedy, higher to sample (v2 only, default 0)
+  --seed <N>          Sampling seed (v2 only, default 0)
+  --system <TEXT>     System message (v2 only)
+  --json              Print only the tool-call payload, not the full text (v2 only)
+  --constrain         Restrict the tool-call payload to the declared schema (v2 only)
+  --prefill-chunk <N> Positions per batched-prefill chunk; 0 prefills one at a
+                      time (v2 only, default 64)
+  --help              Print this message
 
 Examples:
-  needle-rs weights/needle.safetensors weights/vocab.txt \\
+  needle-rs weights/needle2.cact \\
     \"What's the weather in Paris?\" \\
-    '[{\"name\":\"get_weather\",\"description\":\"Get weather\",\"parameters\":{\"location\":{\"type\":\"string\"}}}]'
+    '[{\"name\":\"get_weather\",\"parameters\":{\"city\":{\"type\":\"string\"}}}]'
 
-  needle-rs --stream weights/needle.safetensors weights/vocab.txt \\
-    \"Book a flight\" '[{\"name\":\"book_flight\",\"description\":\"Book flight\",\"parameters\":{}}]'
+  needle-rs --stream --max-tokens 64 weights/needle2.cact \\
+    \"Book a flight\" '[{\"name\":\"book_flight\",\"parameters\":{}}]'
 ";
 
-fn main() {
-    let raw_args: Vec<String> = env::args().collect();
+struct Opts {
+    stream: bool,
+    json_only: bool,
+    constrain: bool,
+    prefill_chunk: Option<usize>,
+    max_tokens: Option<usize>,
+    temperature: Option<f32>,
+    seed: Option<u64>,
+    system: Option<String>,
+    positional: Vec<String>,
+}
 
-    // Parse flags before positional args.
-    let mut stream = false;
-    let mut positional: Vec<&str> = Vec::new();
+fn fail(msg: &str) -> ! {
+    eprintln!("{msg}");
+    process::exit(1);
+}
 
-    let mut i = 1;
-    while i < raw_args.len() {
-        match raw_args[i].as_str() {
-            "--stream" => stream = true,
+/// Consume the value that follows a flag, so a missing one gives one message.
+fn take(raw: &[String], i: &mut usize, name: &str) -> String {
+    *i += 1;
+    raw.get(*i)
+        .cloned()
+        .unwrap_or_else(|| fail(&format!("{name} needs a value\n\n{USAGE}")))
+}
+
+fn parse_args() -> Opts {
+    let raw: Vec<String> = env::args().skip(1).collect();
+    let mut o = Opts {
+        stream: false,
+        json_only: false,
+        constrain: false,
+        prefill_chunk: None,
+        max_tokens: None,
+        temperature: None,
+        seed: None,
+        system: None,
+        positional: Vec::new(),
+    };
+    let mut i = 0;
+    while i < raw.len() {
+        match raw[i].as_str() {
+            "--stream" => o.stream = true,
+            "--json" => o.json_only = true,
+            "--constrain" => o.constrain = true,
+            "--prefill-chunk" => {
+                let v = take(&raw, &mut i, "--prefill-chunk");
+                o.prefill_chunk =
+                    Some(v.parse().unwrap_or_else(|_| fail("--prefill-chunk must be an integer")));
+            }
+            "--max-tokens" => {
+                let v = take(&raw, &mut i, "--max-tokens");
+                o.max_tokens = Some(v.parse().unwrap_or_else(|_| fail("--max-tokens must be an integer")));
+            }
+            "--temperature" => {
+                let v = take(&raw, &mut i, "--temperature");
+                o.temperature = Some(v.parse().unwrap_or_else(|_| fail("--temperature must be a number")));
+            }
+            "--seed" => {
+                let v = take(&raw, &mut i, "--seed");
+                o.seed = Some(v.parse().unwrap_or_else(|_| fail("--seed must be an integer")));
+            }
+            "--system" => o.system = Some(take(&raw, &mut i, "--system")),
             "--help" | "-h" => {
                 print!("{USAGE}");
                 process::exit(0);
             }
-            arg if arg.starts_with('-') => {
-                eprintln!("Unknown option: {arg}");
-                eprintln!("{USAGE}");
-                process::exit(1);
-            }
-            arg => positional.push(arg),
+            arg if arg.starts_with("--") => fail(&format!("Unknown option: {arg}\n\n{USAGE}")),
+            arg => o.positional.push(arg.to_string()),
         }
         i += 1;
     }
+    o
+}
 
-    if positional.len() < 4 {
-        eprintln!("{USAGE}");
-        process::exit(1);
+fn main() {
+    let o = parse_args();
+    if o.positional.is_empty() {
+        fail(USAGE);
     }
+    let model = o.positional[0].clone();
 
-    let weights_path = positional[0];
-    let vocab_path = positional[1];
-    let query = positional[2];
-    let tools_json = positional[3];
+    if model.ends_with(".cact") {
+        run_v2(&o, &model);
+    } else {
+        run_v1(&o, &model);
+    }
+}
 
-    let engine = match NeedleEngine::load(weights_path, vocab_path) {
-        Ok(e) => e,
-        Err(e) => {
-            eprintln!("Failed to load model: {e}");
-            process::exit(1);
-        }
+fn run_v2(o: &Opts, model: &str) {
+    if o.positional.len() < 3 {
+        fail(&format!(
+            "a .cact model takes <query> and <tools_json> (its tokenizer is embedded)\n\n{USAGE}"
+        ));
+    }
+    let (query, tools) = (&o.positional[1], &o.positional[2]);
+
+    let engine = V2Engine::load(model).unwrap_or_else(|e| fail(&format!("Failed to load {model}: {e}")));
+    let opts = GenerateOptions {
+        max_new_tokens: o.max_tokens.unwrap_or(128),
+        temperature: o.temperature.unwrap_or(0.0),
+        seed: o.seed.unwrap_or(0),
+        system: o.system.clone(),
+        constrain: o.constrain,
+        prefill_chunk: o.prefill_chunk.unwrap_or(needle_core::v2::DEFAULT_CHUNK),
     };
 
-    let result = if stream {
+    let result = if o.stream {
         let stderr = std::io::stderr();
-        engine.run_stream(query, tools_json, |_id, piece| {
+        let r = engine.generate(query, tools, &opts, |_id, piece| {
             let mut h = stderr.lock();
             let _ = write!(h, "{piece}");
             let _ = h.flush();
-        })
+        });
+        eprintln!();
+        r
     } else {
-        engine.run(query, tools_json)
+        engine.generate(query, tools, &opts, |_, _| {})
     };
 
-    if stream {
-        eprintln!(); // newline after streamed tokens
+    if o.json_only {
+        match &result.tool_call {
+            Some(tc) => println!("{tc}"),
+            None => {
+                eprintln!("no <tool_call> in the output");
+                process::exit(2);
+            }
+        }
+    } else {
+        println!("{}", result.text);
     }
+}
+
+fn run_v1(o: &Opts, model: &str) {
+    if o.positional.len() < 4 {
+        fail(&format!(
+            "v1 .safetensors weights also need <vocab.txt>; a .cact model does not\n\n{USAGE}"
+        ));
+    }
+    for (flag, set) in [
+        ("--max-tokens", o.max_tokens.is_some()),
+        ("--temperature", o.temperature.is_some()),
+        ("--seed", o.seed.is_some()),
+        ("--system", o.system.is_some()),
+        ("--json", o.json_only),
+        ("--constrain", o.constrain),
+        ("--prefill-chunk", o.prefill_chunk.is_some()),
+    ] {
+        if set {
+            fail(&format!("{flag} is v2 only; {model} is a v1 model"));
+        }
+    }
+    let (vocab, query, tools) = (&o.positional[1], &o.positional[2], &o.positional[3]);
+
+    let engine = NeedleEngine::load(model, vocab)
+        .unwrap_or_else(|e| fail(&format!("Failed to load model: {e}")));
+
+    let result = if o.stream {
+        let stderr = std::io::stderr();
+        let r = engine.run_stream(query, tools, |_id, piece| {
+            let mut h = stderr.lock();
+            let _ = write!(h, "{piece}");
+            let _ = h.flush();
+        });
+        eprintln!();
+        r
+    } else {
+        engine.run(query, tools)
+    };
+
     println!("{}", result.text);
 }

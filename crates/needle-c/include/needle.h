@@ -1,20 +1,34 @@
 /**
- * needle.h — C ABI for the Needle SAN inference engine.
+ * needle.h — C ABI for the needle-rs inference engine.
+ *
+ * Two model generations, two independent surfaces in one library:
+ *
+ *   needle_*     Needle v1 — .safetensors weights + a separate vocab file.
+ *   needle_v2_*  Needle v2 — one .cact container (weights, geometry, tokenizer).
+ *
+ * They share only needle_free_str() and needle_last_error(). Handles are not
+ * interchangeable: free a v2 handle with needle_v2_free(), never needle_free().
  *
  * Usage (compile against the shared library):
- *   gcc -o my_program my_program.c -lneedle -L./target/release
+ *   gcc -o my_program my_program.c -lneedle_c -L./target/release
  *
- * Python ctypes example:
- *   import ctypes, os
+ * Python ctypes example (Needle v2):
+ *   import ctypes
  *   lib = ctypes.CDLL("./target/release/libneedle_c.so")
- *   lib.needle_load.restype = ctypes.c_void_p
- *   lib.needle_load.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
- *   handle = lib.needle_load(b"weights/needle.safetensors", b"weights/vocab.txt")
- *   lib.needle_run.restype = ctypes.c_char_p
- *   lib.needle_run.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
- *   result = lib.needle_run(handle, b"What's the weather?", b'[{"name":"get_weather",...}]')
- *   print(result.decode())
- *   lib.needle_free(handle)
+ *   lib.needle_v2_load.restype  = ctypes.c_void_p
+ *   lib.needle_v2_load.argtypes = [ctypes.c_char_p]
+ *   h = lib.needle_v2_load(b"weights/needle2.cact")
+ *   # Declare returned strings as c_void_p, NOT c_char_p: ctypes converts a
+ *   # c_char_p result into a Python bytes object and drops the original
+ *   # pointer, so needle_free_str() would be handed Python-owned memory.
+ *   lib.needle_v2_run.restype  = ctypes.c_void_p
+ *   lib.needle_v2_run.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
+ *   ptr = lib.needle_v2_run(h, b"What's the weather in Paris?", b'[{"name":"get_weather",...}]')
+ *   print(ctypes.cast(ptr, ctypes.c_char_p).value.decode())
+ *   lib.needle_free_str(ptr)
+ *   lib.needle_v2_free(h)
+ *
+ * See examples/python-via-cffi/infer.py for a complete program covering both.
  */
 
 #ifndef NEEDLE_H
@@ -28,8 +42,11 @@
 extern "C" {
 #endif
 
-/** Opaque handle returned by needle_load / needle_load_bytes. */
+/** Opaque handle returned by needle_load / needle_load_bytes (Needle v1). */
 typedef struct NeedleHandle NeedleHandle;
+
+/** Opaque handle returned by needle_v2_load / needle_v2_load_bytes (Needle v2). */
+typedef struct NeedleV2Handle NeedleV2Handle;
 
 /**
  * Streaming callback type for needle_run_stream.
@@ -42,7 +59,7 @@ typedef void (*NeedleStreamCallback)(uint32_t token_id,
                                      const char *piece,
                                      void *user_data);
 
-/* ── Loading ──────────────────────────────────────────────────────────────── */
+/* ── Needle v1: loading ─────────────────────────────────────────────────── */
 
 /**
  * Load a Needle model from weight and vocabulary files on disk.
@@ -71,7 +88,7 @@ NeedleHandle *needle_load(const char *weights_path, const char *vocab_path);
 NeedleHandle *needle_load_bytes(const uint8_t *weights_data, size_t weights_len,
                                 const uint8_t *vocab_data,   size_t vocab_len);
 
-/* ── Inference ────────────────────────────────────────────────────────────── */
+/* ── Needle v1: inference ───────────────────────────────────────────────── */
 
 /**
  * Run single-example inference.
@@ -103,7 +120,7 @@ char *needle_run_stream(NeedleHandle    *handle,
                         NeedleStreamCallback callback,
                         void            *user_data);
 
-/* ── Contrastive retrieval ────────────────────────────────────────────────── */
+/* ── Needle v1: contrastive retrieval ───────────────────────────────────── */
 
 /**
  * Return the contrastive embedding dimension.
@@ -156,24 +173,193 @@ size_t needle_retrieve_tools(NeedleHandle  *handle,
                              size_t        *out_indices,
                              float         *out_scores);
 
-/* ── Memory management ────────────────────────────────────────────────────── */
+/* ── Needle v2: loading ─────────────────────────────────────────────────── */
 
 /**
- * Free a string returned by needle_run or needle_run_stream.
- * Safe to call with NULL.
+ * Load a Needle v2 model from a `.cact` container on disk.
+ *
+ * The container carries weights, geometry and the tokenizer, so unlike
+ * needle_load() there is no vocabulary argument.
+ *
+ * @param cact_path  Path to the .cact file (e.g. "weights/needle2.cact").
+ * @return Opaque handle on success, NULL on failure.
+ *         Call needle_last_error() to retrieve the error message.
+ *         Caller must free the handle with needle_v2_free().
+ */
+NeedleV2Handle *needle_v2_load(const char *cact_path);
+
+/**
+ * Load a Needle v2 model from an in-memory `.cact` buffer.
+ *
+ * @param data  Pointer to raw .cact file bytes.
+ * @param len   Length of data in bytes.
+ * @return Opaque handle on success, NULL on failure.
+ *         Caller must free the handle with needle_v2_free().
+ */
+NeedleV2Handle *needle_v2_load_bytes(const uint8_t *data, size_t len);
+
+/* ── Needle v2: inference ───────────────────────────────────────────────── */
+
+/**
+ * Run single-example inference.
+ *
+ * @param handle     Engine handle from needle_v2_load / needle_v2_load_bytes.
+ * @param query      Null-terminated UTF-8 query string.
+ * @param tools_json Null-terminated UTF-8 JSON array of tool definitions.
+ *                   Pretty-printed schemas are compacted internally, so
+ *                   whitespace in the input does not change the result.
+ * @return Heap-allocated null-terminated UTF-8 model output, including any
+ *         <tool_call> markers. NULL on error; free with needle_free_str().
+ */
+char *needle_v2_run(NeedleV2Handle *handle, const char *query, const char *tools_json);
+
+/**
+ * As needle_v2_run, but returns only the <tool_call> payload.
+ *
+ * @return Heap-allocated JSON payload such as
+ *         [{"name":"get_weather","arguments":{"city":"Paris"}}], or "[]" when
+ *         no declared tool fits the query — a deliberate abstention, not an
+ *         error. Returns NULL, with no error set, only when the output carried
+ *         no <tool_call> markers at all, which is a degenerate generation.
+ *         Free with needle_free_str().
+ */
+char *needle_v2_run_json(NeedleV2Handle *handle, const char *query, const char *tools_json);
+
+/**
+ * Generation with explicit settings.
+ *
+ * @param max_new_tokens Token budget for the completion.
+ * @param temperature    <= 0 is greedy; > 0 samples.
+ * @param seed           PRNG seed, used only when temperature > 0.
+ * @param constrain      Non-zero restricts the tool-call payload to the
+ *                       declared schema (valid names and argument keys only).
+ * @return Same semantics as needle_v2_run. Free with needle_free_str().
+ */
+char *needle_v2_generate(NeedleV2Handle *handle,
+                         const char     *query,
+                         const char     *tools_json,
+                         size_t          max_new_tokens,
+                         float           temperature,
+                         uint64_t        seed,
+                         int             constrain);
+
+/**
+ * Run inference with a per-token streaming callback.
+ *
+ * Fires `callback` for each generated token, then returns the full output.
+ * The same NeedleStreamCallback type is used as for the v1 surface.
+ *
+ * @param callback  Function called for each token (may be NULL to skip streaming).
+ * @param user_data Passed through unchanged to each callback invocation.
+ * @return Same semantics as needle_v2_run. Free with needle_free_str().
+ */
+char *needle_v2_run_stream(NeedleV2Handle  *handle,
+                           const char      *query,
+                           const char      *tools_json,
+                           NeedleStreamCallback callback,
+                           void            *user_data);
+
+/* ── Needle v2: probe heads ─────────────────────────────────────────────── */
+
+/**
+ * Write the probability that `completion` answers `(query, tools_json)`
+ * correctly to `out`, in the range (0, 1).
+ *
+ * The confidence head scores a judgement already made: it is trained on the
+ * formatted prompt followed by a completion. This call assembles that input for
+ * you, so pass the string needle_v2_run() returned for the run being judged.
+ * Use it to gate execution — act above a threshold you pick, escalate below it.
+ * This head has no v1 equivalent.
+ *
+ * @param completion  Model output being judged (e.g. from needle_v2_run).
+ * @param out         Caller-allocated writable float.
+ * @return true on success, false if the container has no confidence head.
+ */
+bool needle_v2_confidence_for(NeedleV2Handle *handle,
+                              const char     *query,
+                              const char     *tools_json,
+                              const char     *completion,
+                              float          *out);
+
+/**
+ * Write the raw confidence logit for an arbitrary string to `out`.
+ *
+ * Higher is more confident; apply a sigmoid for a probability:
+ *   p = 1 / (1 + exp(-logit))
+ *
+ * This is the primitive. Because the head scores a prompt-plus-completion
+ * pair, passing a bare query reads near zero however answerable it is — prefer
+ * needle_v2_confidence_for() unless you are assembling the prompt yourself.
+ *
+ * @param out  Caller-allocated writable float.
+ * @return true on success, false if the container has no confidence head.
+ */
+bool needle_v2_confidence(NeedleV2Handle *handle, const char *text, float *out);
+
+/**
+ * Return the contrastive embedding dimension, or 0 if the container has no
+ * contrastive head.
+ */
+size_t needle_v2_contrastive_dim(NeedleV2Handle *handle);
+
+/**
+ * Encode text into an L2-normalized contrastive embedding.
+ *
+ * Both sides are L2-normalized, so similarity is the plain dot product.
+ *
+ * @param out  Caller-allocated float32 buffer of at least
+ *             needle_v2_contrastive_dim(handle) elements.
+ * @param dim  Size of `out` (must equal needle_v2_contrastive_dim(handle)).
+ * @return true on success, false if no contrastive head or dim mismatch.
+ */
+bool needle_v2_encode_contrastive(NeedleV2Handle *handle,
+                                  const char     *text,
+                                  float          *out,
+                                  size_t          dim);
+
+/**
+ * Rank tool descriptions by contrastive similarity to a query.
+ *
+ * Same contract as needle_retrieve_tools, on the v2 head.
+ *
+ * @param out_indices  Caller-allocated buffer of at least `top_k` size_t values.
+ * @param out_scores   Caller-allocated buffer of at least `top_k` float values.
+ * @return Number of results written (min(top_k, n_tools)), or 0 if no
+ *         contrastive head.
+ */
+size_t needle_v2_retrieve_tools(NeedleV2Handle *handle,
+                                const char     *query,
+                                const char    **tool_descs,
+                                size_t          n_tools,
+                                size_t          top_k,
+                                size_t         *out_indices,
+                                float          *out_scores);
+
+/**
+ * Free a NeedleV2Handle returned by needle_v2_load / needle_v2_load_bytes.
+ * Safe to call with NULL. Do NOT pass a v2 handle to needle_free().
+ */
+void needle_v2_free(NeedleV2Handle *handle);
+
+/* ── Memory management ──────────────────────────────────────────────────── */
+
+/**
+ * Free a string returned by any needle_* or needle_v2_* call that returns
+ * char* (shared by both surfaces). Safe to call with NULL.
  */
 void needle_free_str(char *s);
 
 /**
  * Free a NeedleHandle returned by needle_load or needle_load_bytes.
- * Safe to call with NULL.
+ * Safe to call with NULL. For v2 handles use needle_v2_free().
  */
 void needle_free(NeedleHandle *handle);
 
-/* ── Error reporting ──────────────────────────────────────────────────────── */
+/* ── Error reporting ────────────────────────────────────────────────────── */
 
 /**
  * Return the last error message as a null-terminated C string, or NULL if none.
+ * Shared by both surfaces.
  *
  * The returned pointer is valid until the next call to any needle_* function
  * on the current thread. Do NOT free this pointer.

@@ -2,7 +2,17 @@
 name = "needle-wasm"
 version.workspace = true
 edition.workspace = true
-description = "WASM bindings for Needle (browser, Cloudflare Workers, Node.js)"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "WebAssembly bindings for Needle (browser, Cloudflare Workers, Node.js)"
+keywords = ["wasm", "llm", "inference", "tool-calling", "browser"]
+categories = ["wasm", "science"]
+readme = "../../README.md"
+rust-version.workspace = true
+# Distributed as the npm package `needle-rs`, built by wasm-pack — not a
+# crates.io artifact. See .github/workflows/release.yml.
+publish = false
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false  # wasm-opt binary from wasm-pack is incompatible with this build environment
@@ -11,8 +21,8 @@ wasm-opt = false  # wasm-opt binary from wasm-pack is incompatible with this bui
 crate-type = ["cdylib"]
 
 [dependencies]
-needle-infer = { path = "../needle-infer" }
-needle-core = { path = "../needle-core" }
+needle-infer = { path = "../needle-infer", version = "0.2.0" }
+needle-core = { path = "../needle-core", version = "0.2.0" }
 serde_json = { version = "1", default-features = false, features = ["alloc"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

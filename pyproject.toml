@@ -4,14 +4,19 @@ build-backend = "maturin"
 
 [project]
 name = "needle-rs"
-version = "0.1.0"
-description = "Pure-Rust + WebAssembly runtime for Needle — a 26M-parameter tool-calling transformer"
-readme = "README.md"
+version = "0.2.0"
+description = "Pure-Rust + WebAssembly runtime for the Needle tool-calling models (v2 and v1)"
+# A PyPI-specific README: the repo README's image links are relative, which
+# renders broken on the package page.
+readme = "crates/needle-python/README.md"
 license = { text = "MIT" }
 requires-python = ">=3.8"
-keywords = ["tool-calling", "function-calling", "ai", "wasm", "rust", "on-device"]
+keywords = ["tool-calling", "function-calling", "ai", "llm", "needle", "wasm", "rust", "on-device", "edge-ai"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
     "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "License :: OSI Approved :: MIT License",
@@ -21,6 +26,10 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/geekgineer/needle-rs"
 Repository = "https://github.com/geekgineer/needle-rs"
+Documentation = "https://github.com/geekgineer/needle-rs#readme"
+Changelog = "https://github.com/geekgineer/needle-rs/blob/main/CHANGELOG.md"
+Issues = "https://github.com/geekgineer/needle-rs/issues"
+Demo = "https://needle-rs.pages.dev"
 
 [tool.maturin]
 manifest-path = "crates/needle-python/Cargo.toml"

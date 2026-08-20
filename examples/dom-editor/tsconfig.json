@@ -8,10 +8,18 @@
 
     /* Bundler mode */
     "moduleResolution": "bundler",
+    /* The engine is this repo's own wasm-pack output, not an npm install.
+       vite.config.ts aliases the module name to ../../pkg at build time; this
+       is the matching type mapping so `tsc` resolves the same import. */
+    "paths": { "needle-rs": ["../../pkg/needle_wasm.d.ts"] },
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
+    /* Required: without strictNullChecks, TypeScript does not narrow a
+       discriminated union by its literal discriminant, which made `tsc` — and
+       therefore `npm run build` — fail on well-formed code. */
+    "strict": true,
 
     /* Linting */
     "noUnusedLocals": true,

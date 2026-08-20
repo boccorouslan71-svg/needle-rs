@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>needle-playground — local LLM rewrites the DOM</title>
-    <meta name="description" content="A 22 MB tool-calling LLM running entirely in your browser, manipulating the page in real time." />
+    <meta name="description" content="A 13.7 MB tool-calling LLM running entirely in your browser, manipulating the page in real time. Needle v2 and v1, no server." />
   </head>
   <body>
     <main id="app">
@@ -19,13 +19,17 @@
 
       <section id="load-panel" class="panel">
         <p id="lede" class="lede">
-          A 26M-parameter tool-calling LLM runs entirely in this tab. Type one English command;
+          A small tool-calling LLM runs entirely in this tab. Type one English command;
           the model walks <strong>this whole page</strong>, generates tools for what it finds,
           and changes one thing. Yes — the title, this paragraph, even the footer.
         </p>
-        <button id="load-btn" class="primary" data-no-edit>Load model (22 MB, cached after first run)</button>
+        <button id="load-btn" class="primary" data-no-edit>Load model (cached after first run)</button>
+        <p class="hint" data-no-edit>
+          Loads <b>Needle v2</b> (one 13.7 MB <code>.cact</code> file) by default.
+          Append <code>?model=v1</code> to the URL for Needle v1 (22 MB + vocabulary).
+        </p>
         <div id="progress" class="progress hidden" data-no-edit>
-          <div class="progress-row"><span id="progress-label">Downloading…</span><span id="progress-bytes" class="mono">0 / 22 MB</span></div>
+          <div class="progress-row"><span id="progress-label">Downloading…</span><span id="progress-bytes" class="mono"></span></div>
           <div class="progress-bar"><div id="progress-fill"></div></div>
         </div>
       </section>
@@ -61,7 +65,7 @@
       <aside class="disclaimer panel" data-no-edit>
         <div class="panel-label">Limitations</div>
         <ul>
-          <li>This is a <strong>26M-parameter</strong> model — expect mistakes, ignored commands, and odd rewrites. It is a tech demo, not a reliable assistant.</li>
+          <li>This is a <strong>tiny</strong> model — 45M parameters for v2, 26M for v1. Expect mistakes, ignored commands, and odd rewrites. It is a tech demo, not a reliable assistant.</li>
           <li>Edits are limited to text and inline styles of elements visible in this tab. Anything marked <code>data-no-edit</code> is off-limits, and no changes persist after a refresh.</li>
           <li>The model only sees the current DOM — it has no browsing, memory across runs, or knowledge of the world beyond what's on this page.</li>
           <li>English prompts only. Runs entirely on your device's CPU/GPU, so latency depends on your hardware.</li>
@@ -69,7 +73,7 @@
       </aside>
 
       <footer id="page-footer" class="footer muted">
-        <span>Two-stage pipeline · retrieve → route · <a href="https://huggingface.co/Abdalrahman/needle-rs-safetensors" target="_blank" rel="noopener">weights on HF</a></span>
+        <span>Two-stage pipeline · retrieve → route · <a href="https://huggingface.co/Cactus-Compute/needle2" target="_blank" rel="noopener">weights on HF</a></span>
       </footer>
     </main>
     <script type="module" src="/src/main.ts"></script>

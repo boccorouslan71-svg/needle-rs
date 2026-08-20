@@ -143,6 +143,14 @@ pub struct JsonStateMachine {
     pub current_function: String,
     /// Bytes accumulated inside the current constrained region.
     pub constrained_buf: Vec<u8>,
+    /// Argument keys already written in the current `arguments` object.
+    ///
+    /// The grammar restricts *which* keys are legal but says nothing about how
+    /// often each may appear, so without this a constrained payload can repeat a
+    /// key — observed in practice as
+    /// `{"wibble_place":"Berlin","city":"Berlin","wibble_place":"Berlin"}`.
+    /// Only consulted when the decoder is built with `unique_arg_keys`.
+    pub used_arg_keys: Vec<String>,
     in_arguments: bool,
     arguments_depth: usize,
     nesting_depth: usize,
@@ -165,6 +173,7 @@ impl JsonStateMachine {
             state: JsonState::Free,
             current_function: String::new(),
             constrained_buf: Vec::new(),
+            used_arg_keys: Vec::new(),
             in_arguments: false,
             arguments_depth: 0,
             nesting_depth: 0,
@@ -191,6 +200,14 @@ impl JsonStateMachine {
             }
             JsonState::InArgKey => {
                 if b == b'"' {
+                    // The key is complete; remember it so a repeat can be
+                    // excluded. Cheap: an arguments object has a handful of keys.
+                    if !self.constrained_buf.is_empty() {
+                        let key = String::from_utf8_lossy(&self.constrained_buf).into_owned();
+                        if !self.used_arg_keys.contains(&key) {
+                            self.used_arg_keys.push(key);
+                        }
+                    }
                     self.constrained_buf.clear();
                     self.state = JsonState::Free;
                 } else {
@@ -235,6 +252,8 @@ impl JsonStateMachine {
         if !self.in_arguments && self.tail.ends_with(NAME_TRIGGER) {
             self.state = JsonState::InName;
             self.constrained_buf.clear();
+            // A new call begins: its arguments object starts with no keys used.
+            self.used_arg_keys.clear();
             return;
         }
 
@@ -310,9 +329,17 @@ impl ToolDef {
 pub struct ConstrainedDecoder {
     name_trie: Trie,
     param_tries: HashMap<String, Trie>,
+    /// Declared argument keys per tool, for rebuilding a filtered trie.
+    param_keys: HashMap<String, Vec<String>>,
     sm: JsonStateMachine,
     /// Decoded bytes for each vocab token (▁ → ' '), indexed by token ID.
     token_texts: Vec<Vec<u8>>,
+    /// Forbid repeating an argument key within one call.
+    ///
+    /// Off by default: v1's end-to-end parity asserts an exact token match
+    /// against a Python reference that does not deduplicate, and changing that
+    /// unasked would break a passing suite. The v2 engine enables it.
+    unique_arg_keys: bool,
 }
 
 impl ConstrainedDecoder {
@@ -320,6 +347,7 @@ impl ConstrainedDecoder {
         let mut name_trie = Trie::new();
         let mut param_tries = HashMap::new();
 
+        let mut param_keys = HashMap::new();
         for tool in tool_defs {
             name_trie.insert(tool.snake_name.as_bytes());
             let mut key_trie = Trie::new();
@@ -327,6 +355,7 @@ impl ConstrainedDecoder {
                 key_trie.insert(key.as_bytes());
             }
             param_tries.insert(tool.snake_name.clone(), key_trie);
+            param_keys.insert(tool.snake_name.clone(), tool.param_keys.clone());
         }
 
         let max_id = token_bytes
@@ -344,9 +373,35 @@ impl ConstrainedDecoder {
         Self {
             name_trie,
             param_tries,
+            param_keys,
             sm: JsonStateMachine::new(),
             token_texts,
+            unique_arg_keys: false,
         }
+    }
+
+    /// Forbid repeating an argument key within one tool call.
+    ///
+    /// See the field docs for why this is opt-in rather than always on.
+    pub fn with_unique_arg_keys(mut self) -> Self {
+        self.unique_arg_keys = true;
+        self
+    }
+
+    /// Keys still available in the current call: declared, minus already written.
+    fn remaining_key_trie(&self) -> Option<Trie> {
+        let declared = self.param_keys.get(&self.sm.current_function)?;
+        let mut trie = Trie::new();
+        let mut any = false;
+        for key in declared {
+            if !self.sm.used_arg_keys.contains(key) {
+                trie.insert(key.as_bytes());
+                any = true;
+            }
+        }
+        // Every key used: fall back to the unfiltered trie rather than forbidding
+        // everything, which would leave no legal continuation at all.
+        any.then_some(trie)
     }
 
     /// Advance the state machine after emitting `token_id`.
@@ -364,6 +419,11 @@ impl ConstrainedDecoder {
         self.sm.feed(bytes);
     }
 
+    /// Argument keys already written in the current call.
+    pub fn used_keys(&self) -> &[String] {
+        &self.sm.used_arg_keys
+    }
+
     /// Build additive logit bias mask for the current state.
     /// Free → all 0.0.  Constrained → 0.0 for valid tokens, -1e9 for invalid.
     pub fn logit_mask(&self, vocab_size: usize) -> Vec<f32> {
@@ -374,13 +434,24 @@ impl ConstrainedDecoder {
                 Some(node) => build_mask_from_trie(&self.name_trie, node, texts, vocab_size),
                 None => vec![0.0f32; vocab_size],
             },
-            JsonState::InArgKey => match self.param_tries.get(&self.sm.current_function) {
-                Some(trie) => match trie.advance(0, &self.sm.constrained_buf) {
-                    Some(node) => build_mask_from_trie(trie, node, texts, vocab_size),
+            JsonState::InArgKey => {
+                let filtered = if self.unique_arg_keys {
+                    self.remaining_key_trie()
+                } else {
+                    None
+                };
+                let trie = match filtered.as_ref() {
+                    Some(t) => Some(t),
+                    None => self.param_tries.get(&self.sm.current_function),
+                };
+                match trie {
+                    Some(trie) => match trie.advance(0, &self.sm.constrained_buf) {
+                        Some(node) => build_mask_from_trie(trie, node, texts, vocab_size),
+                        None => vec![0.0f32; vocab_size],
+                    },
                     None => vec![0.0f32; vocab_size],
-                },
-                None => vec![0.0f32; vocab_size],
-            },
+                }
+            }
         }
     }
 }
@@ -685,6 +756,56 @@ fn json_skip_value(bytes: &[u8], i: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
+
+    /// The duplicate-key guard: once a key has been written, it must be excluded
+    /// from the mask while other declared keys remain.
+    #[test]
+    fn unique_arg_keys_excludes_a_written_key() {
+        let defs = ToolDef::from_json(
+            "[{\"name\":\"t\",\"description\":\"x\",\"parameters\":\
+             {\"alpha\":{\"type\":\"string\"},\"beta\":{\"type\":\"string\"}}}]",
+        );
+        assert_eq!(defs.len(), 1);
+        assert_eq!(defs[0].param_keys.len(), 2, "{:?}", defs[0].param_keys);
+
+        // One token per byte value, so a mask entry maps to a character.
+        let vocab: Vec<(u32, Vec<u8>)> = (0..128u32).map(|i| (i, vec![i as u8])).collect();
+        let vsize = vocab.len();
+        let ix = |c: char| c as usize;
+
+        let mut dec = ConstrainedDecoder::new(&defs, vocab.clone()).with_unique_arg_keys();
+        dec.feed_bytes(b"[{\"name\":\"t\",\"arguments\":{\"");
+        let mask = dec.logit_mask(vsize);
+        assert_eq!(mask[ix('a')], 0.0, "alpha should be startable");
+        assert_eq!(mask[ix('b')], 0.0, "beta should be startable");
+
+        // Finish alpha and its value, then open the next key.
+        dec.feed_bytes(b"alpha\":\"x\",\"");
+        assert_eq!(dec.used_keys(), ["alpha".to_string()]);
+        let mask = dec.logit_mask(vsize);
+        assert!(mask[ix('a')] < -1.0, "alpha must be excluded once used");
+        assert_eq!(mask[ix('b')], 0.0, "beta must remain available");
+
+        // Without the flag the written key stays available, which is v1 behaviour.
+        let mut plain = ConstrainedDecoder::new(&defs, vocab);
+        plain.feed_bytes(b"[{\"name\":\"t\",\"arguments\":{\"alpha\":\"x\",\"");
+        assert_eq!(plain.logit_mask(vsize)[ix('a')], 0.0, "v1 permits repeats");
+    }
+
+    /// A new call resets the used set, so the next call may reuse the same keys.
+    #[test]
+    fn unique_arg_keys_resets_between_calls() {
+        let defs = ToolDef::from_json(
+            "[{\"name\":\"t\",\"description\":\"x\",\
+             \"parameters\":{\"alpha\":{\"type\":\"string\"}}}]",
+        );
+        let vocab: Vec<(u32, Vec<u8>)> = (0..128u32).map(|i| (i, vec![i as u8])).collect();
+        let mut dec = ConstrainedDecoder::new(&defs, vocab).with_unique_arg_keys();
+        dec.feed_bytes(b"[{\"name\":\"t\",\"arguments\":{\"alpha\":\"x\"},");
+        dec.feed_bytes(b"{\"name\":\"t\",\"arguments\":{\"");
+        assert!(dec.used_keys().is_empty(), "a new call clears the used set");
+        assert_eq!(dec.logit_mask(128)['a' as usize], 0.0, "alpha available again");
+    }
     use super::*;
 
     #[test]

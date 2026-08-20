@@ -15,6 +15,11 @@
 //!   const results = engine.run_batch([{query:"...",tools:"..."}, ...]);
 //!   // contrastive retrieval (requires weights with contrastive_proj_kernel):
 //!   const emb = engine.encode_contrastive("What's the weather?"); // Float32Array | null
+//!
+//! For Needle v2 use `NeedleV2Wasm` (see `v2.rs`): a `.cact` container carries
+//! its own tokenizer, so `load` takes bytes only and there is no vocab argument.
+
+pub mod v2;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;

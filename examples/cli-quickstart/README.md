@@ -1,34 +1,43 @@
 # CLI quickstart
 
-Runs the needle-rs CLI against a weather tool definition.
-
-## Prerequisites
-
-- Rust toolchain (`cargo build --release`)
-- Model weights at `weights/needle.safetensors` and `weights/vocab.txt`
-  (export with `python tools/export.py` or download from HuggingFace)
-
-## Run
+Runs the `needle-rs` CLI against a single tool definition, on either model
+version. Missing weights are fetched from HuggingFace.
 
 ```bash
-chmod +x run.sh
-./run.sh "What is the weather in Tokyo?"
+./run.sh                              # Needle v2 (default)
+./run.sh "Email bob@example.com"      # Needle v2, your query
+./run.sh --v1 "Weather in Paris?"     # Needle v1
+./run.sh --both "Weather in Paris?"   # both, to compare
 ```
 
-Expected output (approximately):
+## The two invocations differ
 
-```json
-{"name": "get_weather", "arguments": {"location": "Tokyo", "unit": "celsius"}}
-```
-
-## Streaming mode
+A v2 `.cact` container carries the weights, the architecture geometry **and** the
+tokenizer, so it takes one path and no vocabulary argument:
 
 ```bash
-../../target/release/needle-rs --stream \
-  ../../weights/needle.safetensors \
-  ../../weights/vocab.txt \
-  "Book a flight from London to New York" \
-  '[{"name":"book_flight","description":"Book a flight","parameters":{"type":"object","properties":{"origin":{"type":"string"},"destination":{"type":"string"},"date":{"type":"string"}}}}]'
+needle-rs --constrain weights/needle2.cact "$QUERY" "$TOOLS"
 ```
 
-Tokens stream to stderr; final JSON goes to stdout.
+v1 keeps the tokenizer outside the weights, so it takes two:
+
+```bash
+needle-rs weights/needle.safetensors weights/vocab.txt "$QUERY" "$TOOLS"
+```
+
+The CLI dispatches on the file extension, so you never pass a version flag.
+
+## Flags worth knowing (v2 only)
+
+| Flag | Effect |
+|---|---|
+| `--constrain` | Restrict the payload to the declared tool names and argument keys |
+| `--json` | Print only the tool-call payload, not the full decoded text |
+| `--stream` | Print tokens to stderr as they are generated |
+| `--max-tokens N` | Generation cap (default 128) |
+| `--temperature T` | `0` is greedy; above that, sampling with `--seed` |
+| `--system TEXT` | Prepend a system message |
+| `--prefill-chunk N` | Positions per batched-prefill chunk; `0` disables batching |
+
+Passing any of these with v1 weights is rejected rather than ignored — v1 is
+always constrained and greedy-only.
