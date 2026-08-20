@@ -10,7 +10,7 @@ dependencies — standard library and ctypes only.
     python infer.py --model ../../weights/needle2.cact \
         --query "What's the weather in Paris?" --constrain
 
-    # Needle v2 — the probe heads v1 does not have (confidence + retrieval)
+    # Needle v2 — confidence gating (v1 has retrieval, but no confidence head)
     python infer.py --model ../../weights/needle2.cact --analyse
 
     # Needle v1 — weights plus a separate vocabulary

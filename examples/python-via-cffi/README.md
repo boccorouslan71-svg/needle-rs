@@ -10,7 +10,7 @@ cargo build --release -p needle-c
 # Needle v2 — one file, tokenizer included
 python infer.py --constrain
 
-# Needle v2 — the probe heads, which v1 does not have
+# Needle v2 — confidence gating (v1 has retrieval, but no confidence head)
 python infer.py --analyse
 
 # Needle v2 — streaming
@@ -30,6 +30,11 @@ python infer.py --model ../../weights/needle.safetensors --vocab ../../weights/v
   `needle_free_str` frees Python-owned memory and aborts the process. Read
   through a cast, free the original pointer — see `take()`.
 - A streaming callback via `CFUNCTYPE`, with the reference kept alive.
+- Confidence gating done correctly. The head scores a completed judgement, so
+  `--analyse` calls `needle_v2_confidence_for` with the prompt *and* the model's
+  own output. The lower-level `needle_v2_confidence` takes bare text and reads
+  near zero for a query however answerable it is — that is the primitive, not a
+  bug.
 - Capability differences handled rather than assumed: v2-only flags are ignored
   with a warning on v1 instead of failing.
 
