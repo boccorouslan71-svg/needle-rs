@@ -5,6 +5,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-20
+
+Documentation only. No runtime, API or weight-format change; `0.2.0` and `0.2.1`
+are byte-identical in behaviour. Published so the corrected npm registry page
+reaches users, since npm cannot replace the README of a version already out.
+
+### Fixed
+
+- The published WASM module was described as "414 KB", which is wrong in every
+  unit — it is 423,330 bytes, i.e. 413 KiB or 423 kB. Corrected everywhere.
+- The browser demo reported 156 KB against docs claiming 414 KB, which read as a
+  contradiction. Both were measuring real things: the demo reads
+  `encodedBodySize`, and Cloudflare serves the module with `content-encoding: br`
+  at 159,429 bytes. The published figure is now "413 KB module, 156 KB over the
+  wire", matching what the demo shows, and the demo's stat card says so.
+- Dropped the "132 KB brotli" claim, which was local `brotli -q 11` that no CDN
+  delivers.
+- The npm README claimed Needle v1 supports tool retrieval the same way v2 does.
+  It does not: the published v1 weights carry no contrastive head, so
+  `contrastive_dim()` is `0`, `encode_contrastive()` returns `undefined` and
+  `retrieve_tools()` returns `[]`. v2's head is 128-dimensional.
+- The documented `retrieve_tools` scores were wrong — the third pair read
+  `[1,0.31]` where the measured value is `0.5244`.
+- `SHA256SUMS` listed every asset with a `dist/` path prefix, so `sha256sum -c`
+  failed for anyone who downloaded the release assets flat. Now bare filenames.
+
+
 ## [0.2.0] - 2026-08-20
 
 Adds support for **Needle v2** (`Cactus-Compute/needle2`). Upstream replaced the
