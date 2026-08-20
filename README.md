@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/banner.svg" alt="needle-rs" width="100%"/>
+  <img src="https://raw.githubusercontent.com/Geekgineer/needle-rs/main/assets/banner.svg" alt="needle-rs" width="100%"/>
 
   <br/><br/>
 
@@ -11,7 +11,8 @@
     <a href="https://github.com/Geekgineer/needle-rs/actions/workflows/ci.yml"><img src="https://github.com/Geekgineer/needle-rs/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"/></a>
     <a href="https://github.com/Geekgineer/needle-rs/actions/workflows/release.yml"><img src="https://github.com/Geekgineer/needle-rs/actions/workflows/release.yml/badge.svg" alt="Release"/></a>
     <a href="https://github.com/Geekgineer/needle-rs/actions/workflows/wasm-demo.yml"><img src="https://github.com/Geekgineer/needle-rs/actions/workflows/wasm-demo.yml/badge.svg?branch=main" alt="Demo"/></a>
-    <a href="#parity"><img src="https://img.shields.io/badge/parity-560%2F560%20token--exact-brightgreen?style=flat-square" alt="Parity 560/560"/></a>
+    <a href="#parity"><img src="https://img.shields.io/badge/parity-token--exact-brightgreen?style=flat-square" alt="Token-exact parity"/></a>
+    <a href="#quick-start"><img src="https://img.shields.io/badge/Needle-v1%20%2B%20v2-CE422B?style=flat-square" alt="Needle v1 and v2"/></a>
     <a href="https://crates.io/crates/needle-infer"><img src="https://img.shields.io/crates/v/needle-infer?style=flat-square&color=CE422B" alt="crates.io"/></a>
     <a href="https://www.npmjs.com/package/needle-rs"><img src="https://img.shields.io/npm/v/needle-rs?style=flat-square&color=CE422B" alt="npm"/></a>
     <a href="https://pypi.org/project/needle-rs/"><img src="https://img.shields.io/pypi/v/needle-rs?style=flat-square&color=CE422B" alt="PyPI"/></a>
@@ -28,11 +29,17 @@
 
 <br/>
 
-<img src="assets/demo.gif" alt="needle-rs demo" width="100%"/>
+<img src="https://raw.githubusercontent.com/Geekgineer/needle-rs/main/assets/terminal.svg" alt="A needle-rs session: two tool calls answered locally by Needle v2, then the same query on Needle v1" width="100%"/>
+
+<p align="center">
+  <sub>Real output. For the browser version, try the <a href="https://needle-rs.pages.dev">live demo</a> — it runs both models.</sub>
+</p>
 
 <br/>
 
-A pure-Rust + WebAssembly runtime for [Needle](https://github.com/cactus-compute/needle) by [Cactus Compute](https://github.com/cactus-compute) — a 26M-parameter transformer that maps `(query, tool list) → JSON call` in one forward pass. Deploys to browsers, edge workers, CLIs, Python, and `no_std` embedded targets. No server, no API key.
+A pure-Rust + WebAssembly runtime for [Needle](https://github.com/cactus-compute/needle) by [Cactus Compute](https://github.com/cactus-compute) — small transformers that map `(query, tool list)` to a JSON function call. Deploys to browsers, edge workers, CLIs, Python, and `no_std` embedded targets. No server, no API key, no data leaving the device.
+
+**Both model generations are supported in parallel:** Needle **v2** (45M, decoder-only, one 13.7 MB `.cact` file) and Needle **v1** (26M, encoder–decoder, SafeTensors + vocabulary). Same runtime, same API shape, one binary.
 
 <br/>
 
@@ -41,51 +48,21 @@ A pure-Rust + WebAssembly runtime for [Needle](https://github.com/cactus-compute
   <img src="https://img.shields.io/badge/-Why_this_matters-CE422B?style=flat-square" height="22" alt="Why this matters"/>
 </h2>
 
-Tool calling usually means either a paid API call or hundreds of megabytes on disk. `needle-rs` ships the whole agent in 23 MB.
+Tool calling usually means a paid API round-trip or hundreds of megabytes on disk. This ships the whole agent in **14 MB** and runs it in a browser tab.
 
 <table>
 <thead>
-<tr>
-<th align="left">Stack</th>
-<th align="right">Deploy size</th>
-<th align="right">Latency</th>
-<th align="right">Cost</th>
-<th align="center">Privacy</th>
-</tr>
+<tr><th align="left">Stack</th><th align="right">Deploy size</th><th align="right">Cost</th><th align="center">Privacy</th><th align="center">Offline</th></tr>
 </thead>
 <tbody>
-<tr>
-<td>OpenAI function calling</td>
-<td align="right">SDK + hosted API</td>
-<td align="right">300–800 ms</td>
-<td align="right">$ per token</td>
-<td align="center">leaves device</td>
-</tr>
-<tr>
-<td>llama.cpp + 1B local model</td>
-<td align="right">700 MB+</td>
-<td align="right">varies</td>
-<td align="right">free</td>
-<td align="center">local</td>
-</tr>
-<tr>
-<td>ONNX Runtime Web + a model</td>
-<td align="right">8 MB + your model</td>
-<td align="right">varies</td>
-<td align="right">free</td>
-<td align="center">local</td>
-</tr>
-<tr>
-<td><b><code>needle-rs</code> + Needle</b></td>
-<td align="right"><b>258 KB + 22 MB</b></td>
-<td align="right"><b>~280 ms</b></td>
-<td align="right"><b>free</b></td>
-<td align="center"><b>local</b></td>
-</tr>
+<tr><td>Hosted function calling</td><td align="right">SDK + API</td><td align="right">$ per token</td><td align="center">leaves device</td><td align="center">✗</td></tr>
+<tr><td>llama.cpp + a 1B local model</td><td align="right">700 MB+</td><td align="right">free</td><td align="center">local</td><td align="center">✓</td></tr>
+<tr><td>ONNX Runtime Web + a model</td><td align="right">8 MB + model</td><td align="right">free</td><td align="center">local</td><td align="center">✓</td></tr>
+<tr><td><b><code>needle-rs</code> + Needle v2</b></td><td align="right"><b>414 KB + 13.7 MB</b></td><td align="right"><b>free</b></td><td align="center"><b>local</b></td><td align="center"><b>✓</b></td></tr>
 </tbody>
 </table>
 
-The same routing accuracy — at a fraction of the footprint.
+The runtime is 414 KB of WebAssembly (163 KB over the wire, gzipped) with **one** runtime dependency. A generation session needs about 23 MB of working memory.
 
 <br/>
 
@@ -94,19 +71,34 @@ The same routing accuracy — at a fraction of the footprint.
   <img src="https://img.shields.io/badge/-Quick_start-CE422B?style=flat-square" height="22" alt="Quick start"/>
 </h2>
 
-> **`needle-rs` is a community Rust + WASM runtime for [Needle](https://github.com/cactus-compute/needle) by [Cactus Compute](https://github.com/cactus-compute).** The model architecture, training procedure, dataset, and weights are entirely their work, released under MIT. This project provides a deployment layer for contexts the official Python implementation cannot reach: browsers, edge workers, embedded systems, and binary-distribution use cases. If you build with this, you are building on Cactus's Needle — please credit them.
+**Get a model.** v2 is a single self-describing file; v1 needs a vocabulary alongside its weights.
+
+```bash
+# Needle v2 — weights, geometry and tokenizer in one container
+hf download Cactus-Compute/needle2 needle2.cact --local-dir weights/
+
+# Needle v1
+hf download Abdalrahman/needle-rs-safetensors needle.safetensors vocab.txt --local-dir weights/
+```
 
 <details open>
-<summary><b>Browser / Node.js</b> &nbsp;—&nbsp; <code>npm install needle-rs</code></summary>
+<summary><b>CLI</b> &nbsp;—&nbsp; <code>cargo install needle-rs-cli</code></summary>
 <br/>
 
-```js
-import init, { NeedleWasm } from "needle-rs";
+The crate is `needle-rs-cli`; the binary it installs is `needle-rs`. (Both
+`needle-cli` and `needle-rs` on crates.io are unrelated projects — don't install
+those.)
 
-await init();
-const engine = NeedleWasm.load(weights, vocab);
-engine.run("Book a flight from London to JFK tomorrow", toolsJson);
-// → {"name":"book_flight","arguments":{...}}
+```bash
+# v2 — the file extension selects the version, so there is no flag to get wrong
+needle-rs --json --constrain weights/needle2.cact \
+  "What's the weather in Paris?" \
+  '[{"name":"get_weather","parameters":{"type":"object",
+     "properties":{"city":{"type":"string"}},"required":["city"]}}]'
+# → [{"name":"get_weather","arguments":{"city":"Paris"}}]
+
+# v1 — same binary, two files
+needle-rs weights/needle.safetensors weights/vocab.txt "$QUERY" "$TOOLS"
 ```
 </details>
 
@@ -115,11 +107,33 @@ engine.run("Book a flight from London to JFK tomorrow", toolsJson);
 <br/>
 
 ```rust
-use needle_infer::NeedleEngine;
+use needle_infer::v2_engine::V2Engine;          // Needle v2
+let engine = V2Engine::load("weights/needle2.cact")?;
+let out = engine.run(query, tools_json);
+println!("{}", out.tool_call.unwrap_or(out.text));
 
-let engine = NeedleEngine::load("needle.safetensors", "vocab.txt")?;
-let result = engine.run(query, tools_json);
-println!("{}", result.text);
+use needle_infer::NeedleEngine;                 // Needle v1
+let engine = NeedleEngine::load("weights/needle.safetensors", "weights/vocab.txt")?;
+println!("{}", engine.run(query, tools_json).text);
+```
+</details>
+
+<details open>
+<summary><b>Browser / Node.js</b> &nbsp;—&nbsp; <code>npm install needle-rs</code></summary>
+<br/>
+
+```js
+import init, { NeedleV2Wasm, NeedleWasm } from "needle-rs";
+await init();
+
+const v2 = NeedleV2Wasm.load(new Uint8Array(cactBytes));
+const out = v2.run(query, toolsJson);
+v2.run_json(query, toolsJson);                 // just the payload
+v2.confidence_for(query, toolsJson, out);      // confidence in that answer
+v2.retrieve_tools(query, descriptions, 3);     // rank tools by relevance
+
+const v1 = NeedleWasm.load(weightsBytes, vocabText);
+v1.run(query, toolsJson);
 ```
 </details>
 
@@ -128,22 +142,45 @@ println!("{}", result.text);
 <br/>
 
 ```python
-from needle_rs import NeedleEngine
+from needle_rs import V2Engine, NeedleEngine
 
-engine = NeedleEngine.load("needle.safetensors", "vocab.txt")
-result = engine.run(query, tools_json)
-# → [{"name":"book_flight","arguments":{...}}]
+engine = V2Engine.load("weights/needle2.cact")
+engine.run_json(query, tools_json)                     # tool-call payload
+engine.generate(query, tools_json, constrain=True)     # dict with stop_reason
+engine.retrieve_tools(query, descriptions, top_k=3)
+
+NeedleEngine.load("weights/needle.safetensors", "weights/vocab.txt")
 ```
+
+One `abi3` wheel covers every CPython ≥ 3.8.
 </details>
 
-**Get the weights**
+<br/>
 
-```bash
-huggingface-cli download Abdalrahman/needle-rs-safetensors \
-  needle.safetensors vocab.txt --local-dir weights/
-```
+<!-- ────────────────────────────────────────────────── -->
+<h2 id="versions">
+  <img src="https://img.shields.io/badge/-The_two_models-CE422B?style=flat-square" height="22" alt="The two models"/>
+</h2>
 
-Or load directly from a URL in the browser — no install step.
+Upstream replaced v1's encoder–decoder with a decoder-only architecture in a new container. They share no weights, loader, or quantisation scheme, so `needle-rs` implements both rather than migrating.
+
+<table>
+<thead><tr><th align="left"></th><th align="left">Needle v2</th><th align="left">Needle v1</th></tr></thead>
+<tbody>
+<tr><td>Parameters</td><td>45M</td><td>26M</td></tr>
+<tr><td>Architecture</td><td>decoder-only; mHC lanes, Engram memory, HadamardMLP</td><td>encoder–decoder SAN</td></tr>
+<tr><td>Weights</td><td>Cactus-Quants, ~2.2 bits effective</td><td>symmetric INT4</td></tr>
+<tr><td>Files</td><td><b>one</b> <code>.cact</code> — 13.7 MB</td><td>22 MB + 122 KB vocabulary</td></tr>
+<tr><td>Tokenizer</td><td>embedded in the container</td><td>separate file</td></tr>
+<tr><td>Reasoning trace</td><td>✓ <code>&lt;think&gt;</code></td><td>—</td></tr>
+<tr><td>Constrained decoding</td><td>optional</td><td>always on</td></tr>
+<tr><td>Sampling</td><td>✓ temperature + seed</td><td>greedy only</td></tr>
+<tr><td>Confidence head</td><td>✓</td><td>—</td></tr>
+<tr><td>Tool retrieval head</td><td>✓ 128-d</td><td>✓</td></tr>
+</tbody>
+</table>
+
+Every example in [`examples/`](examples/) runs on both.
 
 <br/>
 
@@ -153,27 +190,18 @@ Or load directly from a URL in the browser — no install step.
 </h2>
 
 <table>
-<thead>
-<tr>
-<th align="left">Target</th>
-<th align="center">Status</th>
-<th align="right">Binary</th>
-</tr>
-</thead>
+<thead><tr><th align="left">Target</th><th align="center">Status</th><th align="right">Binary</th></tr></thead>
 <tbody>
-<tr><td>Browser <sub>(WASM)</sub></td><td align="center">✓</td><td align="right"><code>258 KB</code></td></tr>
-<tr><td>Node.js <sub>(WASM)</sub></td><td align="center">✓</td><td align="right"><code>258 KB</code></td></tr>
-<tr><td>Cloudflare Workers</td><td align="center">✓</td><td align="right"><code>258 KB</code></td></tr>
-<tr><td>Linux / macOS / Windows CLI</td><td align="center">✓</td><td align="right"><code>533 KB</code></td></tr>
-<tr><td>Python <sub>(native wheel)</sub></td><td align="center">✓</td><td align="right"><code>pip install needle-rs</code></td></tr>
-<tr><td>C / C++ / Go / Swift <sub>(via FFI)</sub></td><td align="center">✓</td><td align="right"><code>557 KB</code></td></tr>
-<tr><td><code>no_std</code> embedded (Rust)</td><td align="center">✓</td><td align="right"><sub>size varies</sub></td></tr>
-<tr><td>iOS / Android <sub>(use <a href="https://github.com/cactus-compute/cactus">Cactus</a>)</sub></td><td align="center"><sub>—</sub></td><td align="right"><sub>—</sub></td></tr>
-<tr><td>Apple NPU / Snapdragon NPU <sub>(use <a href="https://github.com/cactus-compute/cactus">Cactus</a>)</sub></td><td align="center"><sub>—</sub></td><td align="right"><sub>—</sub></td></tr>
+<tr><td>Browser / Node.js / Cloudflare Workers <sub>(WASM)</sub></td><td align="center">✓</td><td align="right"><code>414 KB</code> <sub>163 KB gzipped</sub></td></tr>
+<tr><td>Linux / macOS / Windows CLI</td><td align="center">✓</td><td align="right"><code>601 KB</code></td></tr>
+<tr><td>Python <sub>(abi3 wheel, CPython ≥ 3.8)</sub></td><td align="center">✓</td><td align="right"><code>pip install needle-rs</code></td></tr>
+<tr><td>C / C++ / Go / Swift <sub>(FFI)</sub></td><td align="center">✓</td><td align="right"><code>needle_v2_*</code> + <code>needle_*</code></td></tr>
+<tr><td><code>no_std</code> embedded <sub>(Rust)</sub></td><td align="center">✓</td><td align="right"><sub>size varies</sub></td></tr>
+<tr><td>iOS / Android, Apple &amp; Snapdragon NPU</td><td align="center"><sub>use <a href="https://github.com/cactus-compute/cactus">Cactus</a></sub></td><td align="right"><sub>—</sub></td></tr>
 </tbody>
 </table>
 
-Cactus's official engine targets mobile and NPUs with hand-tuned ARM SIMD. `needle-rs` targets everywhere else. The two stacks are complementary.
+Cactus's own engine targets mobile and NPUs with hand-tuned ARM SIMD. `needle-rs` targets everywhere else. MSRV is **1.87**.
 
 <br/>
 
@@ -182,105 +210,54 @@ Cactus's official engine targets mobile and NPUs with hand-tuned ARM SIMD. `need
   <img src="https://img.shields.io/badge/-How_it_works-CE422B?style=flat-square" height="22" alt="How it works"/>
 </h2>
 
-Needle is a 26M-parameter encoder-decoder transformer with a small twist: it's trained to do exactly one thing — emit a function-call JSON object from a query and a tool list. That focus is why a model this small works at all.
-
 <table>
 <tr>
 <td width="32" valign="top" align="center"><sub>1</sub></td>
-<td valign="top"><b>Encoder–decoder SAN.</b> The encoder reads the query and tool definitions once. The decoder generates output JSON token by token, attending to the encoder's cached KV. Single forward pass per call.</td>
+<td valign="top"><b>Weights are never reconstructed.</b> A Cactus-Quants group dequantises as <code>w = u @ H</code> with <code>H</code> a normalised Walsh–Hadamard matrix. <code>H</code> is symmetric, so <code>dot(x, u @ H) == dot(H @ x, u)</code> — the rotation moves off the weights and onto the activation, paid once per matrix instead of once per row. At 512×512 that is 4 transforms instead of 512, and the inner loop becomes a dot product against packed bytes.</td>
 </tr>
 <tr>
 <td valign="top" align="center"><sub>2</sub></td>
-<td valign="top"><b>INT4 quantization.</b> All attention and FFN weights are packed 4-bit nibbles with per-32-row scales. Matvec dequantizes on the fly — the full f32 weight matrix is never materialized. AVX2 on x86_64, NEON on aarch64, scalar fallback for WASM.</td>
+<td valign="top"><b>Fast Walsh–Hadamard, not a matmul.</b> Both places Needle uses <code>H</code> — quantisation groups and HadamardMLP — use a butterfly: <code>n log₂n</code> add/sub instead of <code>n²</code> multiply-accumulates.</td>
 </tr>
 <tr>
 <td valign="top" align="center"><sub>3</sub></td>
-<td valign="top"><b>Constrained decoding.</b> A character-level trie over valid tool names and argument keys, plus a three-state JSON machine, masks logits at every step. Output is always syntactically valid JSON pointing at a real tool — never a hallucinated function name, never broken syntax.</td>
+<td valign="top"><b>The KV cache is a ring.</b> v2 attends over a 256-token window, so the cache holds 256 positions rather than <code>max_seq_len</code> — 14 MB instead of 113 MB.</td>
 </tr>
 <tr>
 <td valign="top" align="center"><sub>4</sub></td>
-<td valign="top"><b>Two schema formats.</b> Accepts both the flat <code>{"location": {"type": "string"}}</code> style and OpenAI's <code>{"type":"object","properties":{...}}</code> style. The Python reference handles only the flat form.</td>
+<td valign="top"><b>Probe heads stream.</b> Confidence and retrieval pool over every layer's activations at every position — 117 MB if materialised. An online softmax reaches the same result in 16 KB.</td>
 </tr>
 <tr>
 <td valign="top" align="center"><sub>5</sub></td>
-<td valign="top"><b>Greedy by design.</b> Tool calling is a routing task, not a generation task — temperature would only introduce errors. <code>needle-rs</code> is argmax-only and intentionally does not support stochastic sampling.</td>
+<td valign="top"><b>Constrained decoding.</b> A character trie over declared tool names and argument keys, plus a JSON state machine, masks logits so the payload cannot name a tool that does not exist. Accepts both the flat and OpenAI schema styles.</td>
 </tr>
 </table>
 
-Architecture deep-dive: [ARCHITECTURE.md](ARCHITECTURE.md).
+Architecture deep-dive: [ARCHITECTURE.md](ARCHITECTURE.md) · v2 port record: [docs/v2-port-record.md](docs/v2-port-record.md).
 
 <br/>
 
 <!-- ────────────────────────────────────────────────── -->
 <h2 id="parity">
   <img src="https://img.shields.io/badge/-Parity-7EE787?style=flat-square" height="22" alt="Parity"/>
-  &nbsp;
-  <img src="https://img.shields.io/badge/560%2F560-token--exact-7EE787?style=flat-square" height="22" alt="560/560 token-exact"/>
 </h2>
 
-A common failure mode for from-scratch model reimplementations is silent drift — outputs that look right but diverge at the third decimal place, with rare and untraceable downstream bugs. `needle-rs` rejects that. The Rust engine is required to produce the **exact same token ID sequence** as the Python/JAX reference on every input, at every decode step.
+The failure mode for a from-scratch reimplementation is silent drift: output that looks right but diverges in the third decimal, producing rare and untraceable bugs. Both engines are held to the reference implementation's exact output.
 
-The test suite generates 560 inference examples by running the Python model on a diverse input set: five tool-name conventions <sub>(snake_case, camelCase, PascalCase, UPPER_SNAKE_CASE, kebab-case)</sub>, parameter counts from 0 to 8, tool arrays from 1 to 20 entries, and a spread of natural-language query phrasings. For each example we capture the Python model's complete output token sequence. The Rust engine is then run on every example and required to produce the identical sequence.
+**Needle v2** — verified against upstream's own `decode.forward_cached` running the same weights, reconstructed from the shipped container by [`tools/cact_params.py`](tools/cact_params.py):
 
-> **560 / 560 pass.** Not approximately — same `argmax` decision at every step.
+| What | Result |
+|---|---|
+| Forward pass, 788 captured intermediates across 27 layers | max relative deviation **1.9e-5** |
+| End to end, 14 prompt/tool combinations (2,482 tokens) | **exact** token ids |
+| Container: 145 CQ + 259 FP16 tensors, header, codebook | field-for-field match |
+| Tokenizer, 44-case corpus | exact ids vs `RefTokenizer` **and** `sentencepiece` |
+| Probe heads | contrastive **1.4e-6**, confidence **7.2e-5** |
+| Batched + threaded prefill vs sequential | **bit-identical** |
 
-Token-exact parity is checked on every CI run. Any change that drifts gets caught before merge. The reference vectors are committed to the repo, so the parity contract is version-pinned and reproducible without re-running Python:
+**Needle v1** — 560 generated examples across five tool-name conventions, 0–8 parameters, 1–20 tools: **560/560 token-exact**.
 
-- Reference generator: [`tools/gen_e2e_vectors.py`](tools/gen_e2e_vectors.py)
-- Reference data: [`tests/e2e_vectors.json`](tests/e2e_vectors.json)
-- Rust parity test: [`crates/needle-infer/tests/e2e_parity.rs`](crates/needle-infer/tests/e2e_parity.rs)
-
-Plus 55 unit tests on the constrained decoder covering edge cases the parity suite doesn't reach <sub>(empty tool arrays, parameter-less tools, name-collision under snake_case normalization, max-length queries)</sub>.
-
-<br/>
-
-<!-- ────────────────────────────────────────────────── -->
-<h2 id="api">
-  <img src="https://img.shields.io/badge/-API-CE422B?style=flat-square" height="22" alt="API"/>
-</h2>
-
-<details>
-<summary><b>JavaScript / TypeScript</b></summary>
-<br/>
-
-```js
-engine.run(query, tools)                              // → string
-engine.run_stream(query, tools, (id, piece) => {})    // per-token callback → final string
-engine.run_batch([{ query, tools }, ...])             // → string[]
-engine.encode_contrastive(text)                       // → Float32Array | null
-engine.retrieve_tools(query, descriptionsJson, topK)  // semantic tool routing
-```
-</details>
-
-<details>
-<summary><b>Rust</b></summary>
-<br/>
-
-```rust
-engine.run(query, tools_json);
-engine.run_stream(query, tools_json, |_id, piece| print!("{piece}"));
-engine.run_batch(&[(q1, t1), (q2, t2)]);
-engine.encode_contrastive(text);            // → Option<Vec<f32>>
-engine.retrieve_tools(query, descs, k);     // → Vec<(usize, f32)>
-```
-</details>
-
-<details>
-<summary><b>C (and anything with FFI)</b></summary>
-<br/>
-
-```c
-#include "needle.h"
-
-NeedleHandle h  = needle_load("needle.safetensors", "vocab.txt");
-const char *out = needle_run(h, query, tools_json);
-printf("%s\n", out);
-needle_free_str((char *)out);
-needle_free(h);
-```
-
-Full header: [`crates/needle-c/include/needle.h`](crates/needle-c/include/needle.h). Null-safe throughout; errors via thread-local `needle_last_error()`.
-</details>
+Fixtures are committed, so the contract is version-pinned and reproducible without re-running Python. 253 Rust tests and 36 WASM binding assertions run in CI, in both the default and `parallel` feature configurations.
 
 <br/>
 
@@ -289,28 +266,21 @@ Full header: [`crates/needle-c/include/needle.h`](crates/needle-c/include/needle
   <img src="https://img.shields.io/badge/-Benchmarks-CE422B?style=flat-square" height="22" alt="Benchmarks"/>
 </h2>
 
-Intel i7-1185G7 (Tiger Lake, 4-core), Linux, release build, median of 5 runs.
+Needle v2 on an Apple M5 Max, steady state. Against the Python/JAX reference on the **same machine and the same weights**:
 
-<table>
-<tr><td>End-to-end (load + infer)</td><td align="right"><b><code>283 ms</code></b></td></tr>
-<tr><td>Warm inference only</td><td align="right"><b><code>~80 ms</code></b></td></tr>
-<tr><td>INT4 matvec 512×512 (AVX2)</td><td align="right"><b><code>83 µs · 3.2 Gelem/s</code></b></td></tr>
-<tr><td>INT4 matvec 2048×512 (AVX2)</td><td align="right"><b><code>311 µs · 3.1 Gelem/s</code></b></td></tr>
-</table>
+| | needle-rs | Python / JAX |
+|---|---|---|
+| Load model | **9 ms** | 761 ms + 26.5 s first-call JIT |
+| Decode | **8.2 ms/token** | 11.0 ms/token |
+| Prefill | 1.60 ms/token | **0.51 ms/token** |
+| Session memory | **~23 MB** | — |
+| Runtime dependencies | **0** | 4 |
 
-Apple Silicon NEON path is implemented but unbenchmarked — M-series numbers welcome via PR.
+Decode is **1.35× faster** and cold start about **50×** faster; prefill is slower, because the reference multiplies dense f32 weights while this runs from 2-bit packed ones. On a single query the two cross at **48 generated tokens** — faster above, slower below, and faster at any length on a cold process.
 
-**Footprint, stripped release:**
+Prefill improved **3.6×** during the v2 port (5.74 → 1.60 ms/token) via batching, threading and batched Engram projections. The packed dot product is **2.9×** faster than a single-accumulator version and **9.1×** faster than a naive one.
 
-<table>
-<tr><td>WASM module</td><td align="right"><b><code>258 KB</code></b></td></tr>
-<tr><td>CLI binary</td><td align="right"><b><code>533 KB</code></b></td></tr>
-<tr><td>C shared library</td><td align="right"><b><code>557 KB</code></b></td></tr>
-<tr><td>Weights (INT4 SafeTensors)</td><td align="right"><b><code>22 MB</code></b></td></tr>
-<tr><td>Runtime dependencies</td><td align="right"><b><code>1</code></b> <sub>(libm; WASM adds wasm-bindgen)</sub></td></tr>
-</table>
-
-Full methodology and raw numbers: [BENCHMARKS.md](BENCHMARKS.md).
+Full methodology — including the optimisations that were measured and **rejected**, such as hand-written NEON losing to LLVM's autovectoriser — is in [BENCHMARKS.md](BENCHMARKS.md).
 
 <br/>
 
@@ -319,30 +289,14 @@ Full methodology and raw numbers: [BENCHMARKS.md](BENCHMARKS.md).
   <img src="https://img.shields.io/badge/-What_it's_good_for-CE422B?style=flat-square" height="22" alt="What it's good for"/>
 </h2>
 
-<table>
-<tr>
-<td valign="top" width="50%">
+- **In-browser agents.** Route a user's sentence to one of your app's functions with no backend. See [`examples/browser-demo`](examples/browser-demo) and the [live demo](https://needle-rs.pages.dev).
+- **Dynamic tool sets.** Generate tools from live state each turn and let the model pick — [`examples/dom-editor`](examples/dom-editor) rewrites a page from plain English.
+- **Edge workers.** 414 KB of WASM fits inside a Cloudflare Worker.
+- **Large tool catalogues.** Narrow hundreds of tools with the retrieval head before the call.
+- **Uncertainty-aware routing.** Use the confidence head to escalate to a larger model only when needed.
+- **Offline and embedded.** `no_std` kernels, one dependency, no allocator assumptions beyond `alloc`.
 
-**✓ Browser-side intent routing**
-Decide which API to call before making the network request. Sub-second, zero servers.
-
-**✓ Edge function dispatch**
-Tool calling inside Cloudflare Workers, Vercel Edge, Deno Deploy — anywhere with a WASM runtime.
-
-</td>
-<td valign="top" width="50%">
-
-**✓ On-device privacy**
-User queries never leave the browser tab. Useful for healthcare, legal, and any context where sending text to OpenAI is a non-starter.
-
-**✓ Embedded agents**
-`no_std` core means the kernels run on microcontrollers with enough RAM for the weights.
-
-</td>
-</tr>
-</table>
-
-What it's *not* good for: open-ended chat, long-context reasoning, anything where you'd reach for a >1B-parameter model. Needle is a router, not a generalist.
+Not the right tool for open-ended chat, long-form generation, or reasoning beyond tool selection. It does one thing.
 
 <br/>
 
@@ -362,6 +316,23 @@ Needle is designed and trained by [Henry Ndubuaku](https://github.com/hndubuaku)
   <img src="https://img.shields.io/badge/-Citation-7D8590?style=flat-square" height="22" alt="Citation"/>
 </h2>
 
+The model is Cactus Compute's work. Cite it as they ask — this is their entry,
+reproduced verbatim. The design and ablations are in the paper,
+[arXiv:2607.18363](https://arxiv.org/abs/2607.18363).
+
+```bibtex
+@misc{needle2_2026,
+  title        = {Needle 2: A 45M-Parameter Foundation Tool-Calling Model for Tiny Devices},
+  author       = {Ndubuaku, Henry and Mosoyan, Karen and Mroz, Jakub and Cylich, Noah and
+                  Kumar, Satyajit and Sandhu, Parkirat and Shemet, Roman and Lee, Justin H.},
+  year         = {2026},
+  organization = {Cactus Compute, Inc.},
+  howpublished = {\url{https://github.com/cactus-compute/needle}}
+}
+```
+
+If your work uses the v1 weights specifically, cite the v1 model instead:
+
 ```bibtex
 @software{needle2026,
   author  = {Ndubuaku, Henry and {Cactus Compute}},
@@ -370,7 +341,11 @@ Needle is designed and trained by [Henry Ndubuaku](https://github.com/hndubuaku)
   url     = {https://github.com/cactus-compute/needle},
   license = {MIT}
 }
+```
 
+And this runtime, if it is relevant to what you are reporting:
+
+```bibtex
 @software{needlers2026,
   author  = {Ibrahim, Abdalrahman},
   title   = {needle-rs: Pure-Rust WASM Runtime for Needle},

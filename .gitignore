@@ -6,8 +6,17 @@ needle/
 __pycache__/
 *.pyc
 .env
+.DS_Store
 CLAUDE.md
 whatweneedtodo.md
-ACHIEVEMENTS.md
+pkg/
 pkg-nodejs/
 tests/e2e_vectors.json
+.venv-parity/
+.venv/
+
+# Forward-pass parity ladder: ~1.8 MB of generated f32, and useless without
+# the gitignored 13.7 MB checkpoint. Regenerate with
+# tools/gen_v2_forward_parity.py (needs the JAX venv); the test skips without it.
+tests/v2_forward_vectors.f32
+tests/v2_forward_vectors.json

@@ -39,6 +39,13 @@ Thank you for your interest in contributing. needle-rs is a Rust + WASM runtime 
 - `cargo clippy -- -D warnings` must pass
 - Comments only where the *why* is non-obvious; no obvious comments
 
+## Releasing
+
+Maintainers: the release process, the registry names, and which GitHub Actions
+secret each publish job needs are documented in
+[docs/RELEASING.md](docs/RELEASING.md). One tag publishes to crates.io, npm,
+PyPI, GitHub Releases and Cloudflare Pages, so read it before tagging.
+
 ## Discussions
 
 For broader questions, use [GitHub Discussions](https://github.com/geekgineer/needle-rs/discussions).

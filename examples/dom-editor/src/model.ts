@@ -3,6 +3,9 @@
 // All inference happens off the main thread (see src/worker.ts). This client
 // is a thin postMessage wrapper that hands out promises for each request.
 
+/** Which Needle model to load. v2 is one `.cact` file; v1 is weights + vocab. */
+export type ModelVersion = "v1" | "v2";
+
 export type LoadProgress = {
   stage: "init" | "weights" | "vocab" | "engine" | "ready";
   loadedBytes?: number;
@@ -10,7 +13,7 @@ export type LoadProgress = {
 };
 
 type InMsg =
-  | { id: number; type: "load" }
+  | { id: number; type: "load"; version: ModelVersion }
   | { id: number; type: "infer"; query: string; toolsJson: string }
   | { id: number; type: "retrieve"; query: string; descriptions: string[]; topK: number }
   | { id: number; type: "hasContrastive" };
@@ -31,6 +34,7 @@ export class NeedleModel {
   private nextId = 1;
   private pending = new Map<number, Pending>();
   private contrastiveAvailable = false;
+  private version: ModelVersion = "v2";
 
   private constructor(worker: Worker) {
     this.worker = worker;
@@ -71,10 +75,17 @@ export class NeedleModel {
     });
   }
 
-  static async load(onProgress: (p: LoadProgress) => void): Promise<NeedleModel> {
+  static async load(
+    onProgress: (p: LoadProgress) => void,
+    version: ModelVersion = "v2",
+  ): Promise<NeedleModel> {
     const worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
     const m = new NeedleModel(worker);
-    const meta = await m.request<{ contrastiveDim: number }>({ type: "load" }, onProgress);
+    const meta = await m.request<{ contrastiveDim: number; version: ModelVersion }>(
+      { type: "load", version },
+      onProgress,
+    );
+    m.version = meta.version;
     m.contrastiveAvailable = meta.contrastiveDim > 0;
     if (m.contrastiveAvailable) {
       console.info(`[needle-playground] contrastive head present, dim=${meta.contrastiveDim}`);
@@ -89,6 +100,11 @@ export class NeedleModel {
 
   hasContrastiveHead(): boolean {
     return this.contrastiveAvailable;
+  }
+
+  /** Which Needle version is loaded. */
+  modelVersion(): ModelVersion {
+    return this.version;
   }
 
   infer(query: string, toolsJson: string): Promise<string> {

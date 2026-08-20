@@ -12,6 +12,11 @@
 //!   needle_free_str(s)
 //!   needle_free(handle)
 //!   needle_last_error()                                    → *const char
+//!
+//! The Needle v2 surface lives in `v2.rs` as `needle_v2_*`; it shares
+//! `needle_free_str` and `needle_last_error` with the above.
+
+pub mod v2;
 
 use needle_infer::NeedleEngine;
 use std::ffi::{CStr, CString};
@@ -22,13 +27,13 @@ std::thread_local! {
     static LAST_ERROR: std::cell::RefCell<Option<CString>> = const { std::cell::RefCell::new(None) };
 }
 
-fn set_last_error(msg: impl std::fmt::Display) {
+pub(crate) fn set_last_error(msg: impl std::fmt::Display) {
     let s = CString::new(msg.to_string())
         .unwrap_or_else(|_| CString::new("(error message contained null byte)").unwrap());
     LAST_ERROR.with(|e| *e.borrow_mut() = Some(s));
 }
 
-fn clear_last_error() {
+pub(crate) fn clear_last_error() {
     LAST_ERROR.with(|e| *e.borrow_mut() = None);
 }
 

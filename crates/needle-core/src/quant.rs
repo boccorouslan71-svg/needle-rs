@@ -172,14 +172,29 @@ impl QuantizedWeight {
         }
 
         // NEON is mandatory on aarch64 (ARMv8 baseline) — no runtime check needed.
+        // The scalar fallback is `#[cfg]`-ed out rather than left after an
+        // unconditional return, so an aarch64 build does not warn about an
+        // unreachable statement. That warning is invisible on x86_64, where the
+        // fallback really is reachable, and so failed `-D warnings` only when
+        // building for the ARM targets this crate exists to serve.
         #[cfg(all(target_arch = "aarch64", feature = "simd"))]
-        {
-            return unsafe { self.matvec_neon(x, y) };
+        // Safety: NEON is part of the ARMv8-A baseline, so the intrinsics in
+        // matvec_neon are always available on this target.
+        unsafe {
+            self.matvec_neon(x, y)
         }
 
+        #[cfg(not(all(target_arch = "aarch64", feature = "simd")))]
         self.matvec_scalar(x, y);
     }
 
+    /// Portable reference path.
+    ///
+    /// Retained on every target: it is the fallback for wasm32 and for x86_64
+    /// without AVX2, and the differential reference the SIMD kernels are checked
+    /// against in `simd_matches_scalar_reference`. On aarch64 the NEON path is
+    /// unconditional, so nothing in a non-test build reaches it.
+    #[cfg_attr(all(target_arch = "aarch64", feature = "simd"), allow(dead_code))]
     #[allow(clippy::needless_range_loop)]
     fn matvec_scalar(&self, x: &[f32], y: &mut [f32]) {
         let gs = GROUP_SIZE.min(self.in_feat);
@@ -420,6 +435,42 @@ fn sign_extend4(nibble: u8) -> i8 {
 
 #[cfg(test)]
 mod tests {
+
+    /// Whichever SIMD kernel `matvec` dispatches to must agree with the portable
+    /// scalar path. Nothing else checks the NEON and AVX2 kernels against a
+    /// reference, and they are selected by target and CPUID rather than by any
+    /// test, so this is the only place a divergence would surface.
+    #[test]
+    fn simd_matches_scalar_reference() {
+        for &(in_feat, out_feat) in &[(32usize, 8usize), (64, 16), (512, 512), (100, 12), (33, 7)] {
+            // Deterministic weights spanning positive and negative values.
+            let w: Vec<f32> = (0..in_feat * out_feat)
+                .map(|i| ((i * 31 % 197) as f32 - 98.0) / 37.0)
+                .collect();
+            let q = QuantizedWeight::quantize(&w, in_feat, out_feat);
+            let x: Vec<f32> = (0..in_feat)
+                .map(|i| (i as f32 * 0.37).sin() * 3.0 - 0.5)
+                .collect();
+
+            let mut dispatched = vec![0.0f32; out_feat];
+            q.matvec(&x, &mut dispatched);
+
+            let mut scalar = vec![0.0f32; out_feat];
+            q.matvec_scalar(&x, &mut scalar);
+
+            let l1: f32 = x.iter().map(|v| v.abs()).sum();
+            for o in 0..out_feat {
+                // Same arithmetic, different accumulation order: the gap is
+                // bounded by the input's L1 norm, not by the result's size.
+                assert!(
+                    (dispatched[o] - scalar[o]).abs() <= 1e-4 * l1.max(1.0),
+                    "{in_feat}x{out_feat} out[{o}]: dispatched {} vs scalar {}",
+                    dispatched[o],
+                    scalar[o]
+                );
+            }
+        }
+    }
     use super::*;
 
     #[test]

@@ -2,17 +2,44 @@ cff-version: 1.2.0
 message: >
   If you use needle-rs in your work, please cite both this runtime and the
   original Needle model by Cactus Compute.
-title: "needle-rs: Pure-Rust + WASM runtime for the Needle tool-calling model"
+title: "needle-rs: Pure-Rust + WASM runtime for the Needle tool-calling models"
 authors:
   - family-names: Ibrahim
     given-names: Abdalrahman
-version: 0.1.0
-date-released: 2026-05-17
+version: 0.2.0
+date-released: 2026-08-20
 url: https://github.com/geekgineer/needle-rs
 license: MIT
 repository-code: https://github.com/geekgineer/needle-rs
 
 references:
+  - type: generic
+    title: "Needle 2: A 45M-Parameter Foundation Tool-Calling Model for Tiny Devices"
+    authors:
+      - family-names: Ndubuaku
+        given-names: Henry
+      - family-names: Mosoyan
+        given-names: Karen
+      - family-names: Mroz
+        given-names: Jakub
+      - family-names: Cylich
+        given-names: Noah
+      - family-names: Kumar
+        given-names: Satyajit
+      - family-names: Sandhu
+        given-names: Parkirat
+      - family-names: Shemet
+        given-names: Roman
+      - family-names: Lee
+        given-names: Justin H.
+    year: 2026
+    url: https://github.com/cactus-compute/needle
+    license: MIT
+    notes: >
+      The current Needle model, and the default target of this runtime. Design
+      and ablations: arXiv:2607.18363. The architecture, training, and weights
+      are entirely the work of Cactus Compute; needle-rs is a deployment
+      runtime for them.
   - type: software
     title: "Needle: A 26M-Parameter Tool-Calling Transformer"
     authors:
@@ -23,7 +50,5 @@ references:
     url: https://github.com/cactus-compute/needle
     license: MIT
     notes: >
-      needle-rs is a deployment runtime for the Needle model. The model
-      architecture, training, and weights are entirely the work of Cactus
-      Compute. This runtime adds pure-Rust inference, WASM packaging, C ABI,
-      and INT4 quantization for browser and embedded deployment.
+      Needle v1, still supported by this runtime alongside v2. Cite this one if
+      your work uses the v1 weights specifically.

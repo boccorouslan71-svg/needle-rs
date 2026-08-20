@@ -10,13 +10,17 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Abdalrahman Ibrahim"]
 license = "MIT"
 repository = "https://github.com/geekgineer/needle-rs"
 homepage = "https://github.com/geekgineer/needle-rs"
+documentation = "https://docs.rs/needle-infer"
 readme = "README.md"
+# Set by `usize::is_multiple_of`, stabilised in 1.87. Verified with
+# `cargo +1.87 check --workspace --all-targets`.
+rust-version = "1.87"
 
 [profile.release]
 opt-level = 3

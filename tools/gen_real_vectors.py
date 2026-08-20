@@ -12,6 +12,19 @@ Usage (from needle-rust/ root):
 
 Outputs:
     tests/real_vectors.json — reference data for real_parity.rs
+
+IMPORTANT — this generator targets Needle **v1**, which upstream has since
+replaced. It imports `needle.model.quantize._fake_quantize_int4` and the
+encoder-decoder `SimpleAttentionNetwork`, neither of which exists on upstream
+`main` any more (v2 is decoder-only and uses Cactus-Quants). Check out the v1
+reference before running:
+
+    git -C needle checkout 1807b1d   # last commit with v1 architecture.py
+                                     # and _fake_quantize_int4(group_size=32)
+
+For the v2 path use `tools/gen_cact_parity.py` and
+`tools/gen_tokenizer_parity.py`, which read a `.cact` blob directly and need no
+checkout pinning.
 """
 
 import argparse

@@ -5,16 +5,30 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "no_std compute kernels for Needle inference (matmul, attention, norm, rope, quant)"
+description = "no_std compute kernels for Needle: Cactus-Quants matmul, fast Walsh-Hadamard transform, attention, RoPE"
+keywords = ["llm", "inference", "quantization", "no-std", "simd"]
+categories = ["science", "no-std", "algorithms"]
+readme = "../../README.md"
+rust-version.workspace = true
 
 [features]
 default = ["simd"]
 simd = []       # enables AVX2/NEON intrinsics at compile time
 std = []        # opt-in: enables std (for benchmarks/tests only)
+# Exposes deliberately-slow kernel variants so benchmarks can measure an
+# optimisation against its own predecessor inside one run. Sustained benchmarking
+# downclocks this machine by ~1.5x, so ratios taken across separate runs are not
+# trustworthy. Not for production use.
+bench-internals = []
+# Splits large matvec/matmul row ranges across a rayon pool. Implies std, so it
+# is off for WASM and embedded. Row splitting does not change any individual
+# row's arithmetic, so results stay bit-identical to the serial path.
+parallel = ["std", "dep:rayon"]
 
 [dependencies]
 # Pure-Rust math library for no_std (provides exp, sin, cos, sqrt, powf, etc.)
 libm = { version = "0.2", default-features = false }
+rayon = { version = "1", optional = true }
 
 [dev-dependencies]
 serde_json = "1"
@@ -22,4 +36,8 @@ criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]
 name = "kernels"
+harness = false
+
+[[bench]]
+name = "cq_kernels"
 harness = false

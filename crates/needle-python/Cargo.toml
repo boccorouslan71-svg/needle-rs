@@ -4,7 +4,15 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "Python bindings for needle-rs (PyO3)"
+homepage.workspace = true
+description = "Python bindings for needle-rs (PyO3, abi3)"
+keywords = ["python", "llm", "inference", "tool-calling", "pyo3"]
+categories = ["api-bindings", "science"]
+readme = "../../README.md"
+rust-version.workspace = true
+# Distributed as the PyPI package `needle-rs`, built by maturin — not a
+# crates.io artifact. See .github/workflows/release.yml.
+publish = false
 repository = "https://github.com/geekgineer/needle-rs"
 
 [lib]
@@ -12,5 +20,12 @@ name = "needle_rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-needle-infer = { path = "../needle-infer" }
-pyo3 = { version = "0.21", features = ["extension-module"] }
+needle-infer = { path = "../needle-infer", version = "0.2.0", features = ["parallel"] }
+# abi3-py38 builds against the stable ABI, so one wheel serves every CPython
+# >= 3.8 (matching pyproject's requires-python) and the build no longer caps at
+# whatever the pinned pyo3 knew about. pyo3 0.21 refused to build against the
+# host interpreter on any Python newer than 3.12.
+pyo3 = { version = "0.29", features = ["extension-module", "abi3-py38"] }
+
+[build-dependencies]
+pyo3-build-config = "0.29"

@@ -107,3 +107,58 @@ jobs:
         run: |
           cargo test -p needle-infer --test e2e_parity -- --nocapture
           cargo test -p needle-infer --test real_parity -- --nocapture
+
+  parity-v2:
+    name: v2 parity tests (needle2.cact)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Public repo, no auth needed. 13.7 MB.
+      - name: Download the v2 checkpoint from HuggingFace
+        run: |
+          pip install -q huggingface_hub
+          hf download Cactus-Compute/needle2 needle2.cact --local-dir weights/
+
+      # Container and tokenizer fixtures are tracked, so these need no JAX.
+      # The forward-pass ladder (tests/v2_forward_vectors.*) is gitignored for
+      # size and regenerated locally with tools/gen_v2_forward_parity.py; that
+      # test skips cleanly here. See docs/v2-port-record.md.
+      # These run on x86_64, so they also exercise the AVX2 dispatch path in
+      # needle-core::cq against the scalar reference — the only place that path
+      # is verified, since development happens on aarch64.
+      - name: Run v2 parity tests
+        run: |
+          cargo test -p needle-infer --release --test cact_parity -- --nocapture
+          cargo test -p needle-infer --release --test tokenizer_v2_parity -- --nocapture
+          cargo test -p needle-infer --release --test v2_batch_parity -- --nocapture
+          cargo test -p needle-infer --release --test v2_heads_parity -- --nocapture
+          cargo test -p needle-infer --release --test v2_e2e_parity -- --nocapture
+          # Same suites with threading on: row splitting must stay bit-identical.
+          cargo test -p needle-infer --release --features parallel \
+            --test v2_e2e_parity --test v2_batch_parity -- --nocapture
+          cargo test -p needle-infer --release --test v2_constrained -- --nocapture
+          cargo test -p needle-c      --release --test v2_ffi_smoke -- --nocapture
+
+      # The browser demo calls exactly these bindings, so a break shows up here
+      # rather than in a deployed page.
+      - name: Verify the v2 WASM bindings
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo install wasm-pack --version 0.13.1 --locked
+          wasm-pack build crates/needle-wasm --target nodejs --release --out-dir ../../pkg-nodejs/
+          node crates/needle-wasm/tests/node_e2e_v2.js
+
+      - name: Smoke-test the CLI against the v2 checkpoint
+        run: |
+          cargo run --release -p needle-rs-cli -- --json --max-tokens 32 \
+            weights/needle2.cact "What's the weather in Paris?" \
+            '[{"name":"get_weather","parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}]'

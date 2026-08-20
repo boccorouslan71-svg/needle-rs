@@ -1,43 +1,57 @@
-# Python via C FFI
+# Python via the C ABI
 
-Run Needle inference from Python using `ctypes` — no JAX, no PyTorch, no ML dependencies.
-Only the Python standard library and the compiled `libneedle_c` shared library are required.
-
-## Build the C library
+Runs Needle from Python with **no ML dependencies** — standard library and
+`ctypes` only, against the `needle-rs` C shared library. Both model versions are
+supported, and the version is inferred from the model path.
 
 ```bash
 cargo build --release -p needle-c
+
+# Needle v2 — one file, tokenizer included
+python infer.py --constrain
+
+# Needle v2 — confidence gating (v1 has retrieval, but no confidence head)
+python infer.py --analyse
+
+# Needle v2 — streaming
+python infer.py --stream
+
+# Needle v1 — weights plus a separate vocabulary
+python infer.py --model ../../weights/needle.safetensors --vocab ../../weights/vocab.txt
 ```
 
-This produces `target/release/libneedle_c.so` (Linux), `libneedle_c.dylib` (macOS),
-or `needle_c.dll` (Windows).
+## What it shows
 
-## Run
+- Declaring both C surfaces: `needle_*` (v1) and `needle_v2_*` (v2), which share
+  `needle_free_str` and `needle_last_error`.
+- Correct ownership across the boundary. Every string the library allocates is
+  declared `restype = c_void_p`, **not** `c_char_p`: ctypes converts a `c_char_p`
+  result into a Python `bytes` and discards the pointer, so passing that to
+  `needle_free_str` frees Python-owned memory and aborts the process. Read
+  through a cast, free the original pointer — see `take()`.
+- A streaming callback via `CFUNCTYPE`, with the reference kept alive.
+- Confidence gating done correctly. The head scores a completed judgement, so
+  `--analyse` calls `needle_v2_confidence_for` with the prompt *and* the model's
+  own output. The lower-level `needle_v2_confidence` takes bare text and reads
+  near zero for a query however answerable it is — that is the primitive, not a
+  bug.
+- Capability differences handled rather than assumed: v2-only flags are ignored
+  with a warning on v1 instead of failing.
 
-```bash
-python infer.py \
-  --query "What is the weather in Berlin?" \
-  --tools '[{"name":"get_weather","description":"Get weather","parameters":{"type":"object","properties":{"location":{"type":"string"}}}}]'
-```
+## Two behaviours worth knowing
 
-Expected output:
+**v1 post-processes its output.** The returned text has the `<tool_call>` marker
+stripped and the caller's original tool-name casing restored, so a streamed
+`get_weather` becomes `getWeather` in the result. The streamed tokens are a
+progress view; the return value is the answer. Run `--stream` against v1 to see
+both.
 
-```json
-{"name": "get_weather", "arguments": {"location": "Berlin"}}
-```
+**v2 wraps the payload in markers.** `needle_v2_run` returns the full decoded
+text including `<think>` and `<tool_call>`; `needle_v2_run_json` returns just the
+payload.
 
-## Streaming
+## Prefer the native wheel
 
-```bash
-python infer.py --stream --query "Book a flight from London to New York" \
-  --tools '[{"name":"book_flight","description":"Book a flight","parameters":{"type":"object","properties":{"origin":{"type":"string"},"destination":{"type":"string"},"date":{"type":"string"}}}}]'
-```
-
-## What this demonstrates
-
-- Zero-Python-ML-dependency inference: the heavy lifting is in the Rust shared library
-- `ctypes` bindings to the C ABI (`needle_load`, `needle_run`, `needle_run_stream`, `needle_free`)
-- Streaming callback: a Python function fires per token
-- Works with Python 3.8+ on Linux, macOS, and Windows
-
-For the full C API reference, see `crates/needle-c/include/needle.h` and `docs/c-ffi.md`.
+For real Python use, `pip install needle-rs` gives you `NeedleEngine` and
+`V2Engine` directly — no ctypes, no library path. This example exists to
+document the C ABI for callers in other languages.

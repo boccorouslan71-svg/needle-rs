@@ -1,5 +1,5 @@
 import "./style.css";
-import { NeedleModel, type LoadProgress } from "./model";
+import { NeedleModel, type LoadProgress, type ModelVersion } from "./model";
 import { dispatch, type Step, type ToolSummary } from "./harness";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
@@ -154,11 +154,15 @@ loadBtn.addEventListener("click", async () => {
   loadBtn.textContent = "Loading…";
   setStatus("loading", "loading model");
   try {
+    // Version comes from `?model=v1` in the URL, defaulting to v2. Both are
+    // supported; the worker adapts and the harness never branches on it.
+    const requested = new URLSearchParams(location.search).get("model");
+    const version: ModelVersion = requested === "v1" ? "v1" : "v2";
     model = await NeedleModel.load((p) => {
       renderProgress(p);
       if (p.stage === "engine") setStatus("loading", "initializing engine");
-    });
-    setStatus("ready", "model ready");
+    }, version);
+    setStatus("ready", `Needle ${model.modelVersion()} ready`);
     progressEl.classList.add("hidden");
     loadBtn.classList.add("hidden");
     playPanel.classList.remove("hidden");
