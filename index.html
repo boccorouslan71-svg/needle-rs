@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-slate-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  
+  <title>Diktao — Vos documents pros, à la voix</title>
+  <meta name="description" content="Diktao transforme vos entrées vocales en devis professionnels, registres de cotisations et rapports de chantier 100% hors-ligne sans serveur." />
+  
+  <!-- Open Graph -->
+  <meta property="og:title" content="Diktao — Vos documents pros, à la voix" />
+  <meta property="og:description" content="Application web vocale PWA pour générer devis, registres de cotisations et rapports de chantier avec IA 100% locale." />
+  <meta property="og:type" content="website" />
+  
+  <!-- PWA & Mobile Web App Meta -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#1A365D" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Diktao" />
+  
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="icon" type="image/svg+xml" href="/icons/icon-app.svg" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    /* Mobile-first Native App Shell Styling */
+    :root {
+      --diktao-navy: #1A365D;
+      --diktao-coral: #FF6B4A;
+      --diktao-dark: #0D204A;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    input, textarea, select {
+      user-select: auto;
+    }
+
+    /* Animated Microphone Waves */
+    @keyframes pulse-ring {
+      0% {
+        transform: scale(0.95);
+        opacity: 0.8;
+      }
+      50% {
+        transform: scale(1.35);
+        opacity: 0.2;
+      }
+      100% {
+        transform: scale(0.95);
+        opacity: 0.8;
+      }
+    }
+
+    .mic-pulse {
+      animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+  </style>
+</head>
+<body class="h-full text-slate-900 bg-slate-100 antialiased selection:bg-[#FF6B4A]/20">
+
+  <!-- Mobile Container Wrapper -->
+  <div class="max-w-md mx-auto min-h-screen bg-slate-50 relative flex flex-col shadow-2xl overflow-x-hidden border-x border-slate-200/60 pb-20">
+
+    <!-- ========================================================= -->
+    <!-- 1. SPLASH SCREEN -->
+    <!-- ========================================================= -->
+    <div id="screen-splash" class="fixed inset-0 z-50 bg-[#0D204A] flex flex-col items-center justify-between p-8 text-white select-none">
+      <div class="w-full pt-10 text-right">
+        <button type="button" id="splash-start-btn" class="text-xs font-semibold text-slate-300 hover:text-white px-3 py-1.5 rounded-full border border-slate-600 bg-slate-800/40">
+          Passer l'intro →
+        </button>
+      </div>
+
+      <div class="flex flex-col items-center text-center my-auto">
+        <!-- Logo Diktao Full Icon -->
+        <div class="w-48 h-48 mb-6 drop-shadow-2xl">
+          <img src="/icons/logo-diktao.svg" alt="Logo Diktao" class="w-full h-full object-contain filter drop-shadow" />
+        </div>
+
+        <h1 class="text-3xl font-extrabold tracking-tight text-white mt-1">Diktao</h1>
+        <p class="text-base font-semibold text-[#FF8A00] mt-1.5">Vos documents pros, à la voix</p>
+        <p class="text-xs text-slate-300 max-w-xs mt-3 leading-relaxed">
+          Devis, registres de cotisations et comptes-rendus de chantier conçus pour les artisans et associations d'Afrique francophone.
+        </p>
+      </div>
+
+      <div class="w-full pb-8 flex flex-col items-center">
+        <!-- Status indicator -->
+        <div class="flex items-center gap-2 bg-slate-800/80 px-4 py-2 rounded-full border border-slate-700 text-xs text-slate-300 mb-4">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="engine-status-text">100% hors-ligne · Aucune donnée en ligne</span>
+        </div>
+
+        <button type="button" onclick="window.renderScreen('home')" class="w-full py-3.5 bg-gradient-to-r from-[#FF6B4A] to-[#FF8A00] hover:from-[#f55936] hover:to-[#e67c00] text-white font-bold rounded-2xl shadow-lg shadow-orange-950/20 active:scale-[0.98] transition">
+          Commencer
+        </button>
+      </div>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- 2. HOME SCREEN (Accueil & 3 Modules) -->
+    <!-- ========================================================= -->
+    <div id="screen-home" class="flex-1 flex flex-col">
+      <!-- App Header -->
+      <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl overflow-hidden shadow-sm border border-slate-100 flex items-center justify-center bg-[#0D204A]">
+            <img src="/icons/icon-app.svg" alt="Diktao" class="w-full h-full object-cover" />
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="font-black text-lg tracking-tight text-[#0D204A]">Diktao</span>
+              <span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">100% Local</span>
+            </div>
+            <p class="text-[10px] text-slate-500 -mt-0.5 font-medium">Vos documents pros, à la voix</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <!-- Install Button (PWA) -->
+          <button type="button" id="pwa-install-btn" class="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-200 transition">
+            <svg class="w-3.5 h-3.5 text-[#1A365D]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            <span>Installer</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Body -->
+      <main class="flex-1 p-4 space-y-4">
+        <!-- PWA Install Banner (Dismissible) -->
+        <div id="pwa-install-banner" class="hidden bg-gradient-to-r from-[#1A365D] to-[#0D204A] text-white p-3.5 rounded-2xl shadow-sm flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <img src="/icons/icon-app.svg" class="w-10 h-10 rounded-xl" alt="Icon" />
+            <div>
+              <p class="font-bold text-xs">Installez Diktao sur l'écran d'accueil</p>
+              <p class="text-[11px] text-slate-300">Accédez à l'appli sans connexion internet</p>
+            </div>
+          </div>
+          <button type="button" onclick="document.getElementById('pwa-install-btn')?.click()" class="bg-[#FF6B4A] hover:bg-orange-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition">
+            Installer
+          </button>
+        </div>
+
+        <!-- Welcome Banner -->
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-extrabold text-slate-800">Choisissez votre document</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Parlez en français, Diktao structure le document.</p>
+          </div>
+          <div class="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-[#FF6B4A]">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          </div>
+        </div>
+
+        <!-- 3 Modules Cards -->
+        <div class="space-y-3.5">
+          <!-- Module 1: Devis-Éclair -->
+          <div id="card-module-devis" class="bg-white hover:border-[#1A365D] border border-slate-200/80 rounded-2xl p-4 shadow-sm transition active:scale-[0.99] cursor-pointer group">
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-blue-50 text-[#1A365D] flex items-center justify-center group-hover:bg-[#1A365D] group-hover:text-white transition">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                </div>
+                <div>
+                  <div class="flex items-center gap-1.5">
+                    <h3 class="font-extrabold text-base text-slate-900 group-hover:text-[#1A365D] transition">Devis-Éclair</h3>
+                    <span class="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">Artisans</span>
+                  </div>
+                  <p class="text-xs text-slate-500 mt-0.5">Devis pro instantané pour artisans & prestataires</p>
+                </div>
+              </div>
+              <svg class="w-5 h-5 text-slate-300 group-hover:text-[#1A365D] group-hover:translate-x-0.5 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            </div>
+            
+            <div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+              <span class="text-slate-400 font-medium">Fournitures + Main d'œuvre</span>
+              <span id="quota-devis" class="font-bold text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded-full">5/5 gratuits ce mois</span>
+            </div>
+          </div>
+
+          <!-- Module 2: Cotis-Métier -->
+          <div id="card-module-cotis" class="bg-white hover:border-[#0D9488] border border-slate-200/80 rounded-2xl p-4 shadow-sm transition active:scale-[0.99] cursor-pointer group">
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-teal-50 text-[#0D9488] flex items-center justify-center group-hover:bg-[#0D9488] group-hover:text-white transition">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                </div>
+                <div>
+                  <div class="flex items-center gap-1.5">
+                    <h3 class="font-extrabold text-base text-slate-900 group-hover:text-[#0D9488] transition">Cotis-Métier</h3>
+                    <span class="text-[10px] font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">Tontine</span>
+                  </div>
+                  <p class="text-xs text-slate-500 mt-0.5">Registre de cotisations d'association & mutuelles</p>
+                </div>
+              </div>
+              <svg class="w-5 h-5 text-slate-300 group-hover:text-[#0D9488] group-hover:translate-x-0.5 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            </div>
+            
+            <div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+              <span class="text-slate-400 font-medium">Plusieurs membres par phrase</span>
+              <span id="quota-cotis" class="font-bold text-teal-700 bg-teal-50/80 px-2 py-0.5 rounded-full">5/5 gratuits ce mois</span>
+            </div>
+          </div>
+
+          <!-- Module 3: Rapport-Chantier-Pro -->
+          <div id="card-module-chantier" class="bg-white hover:border-[#D97706] border border-slate-200/80 rounded-2xl p-4 shadow-sm transition active:scale-[0.99] cursor-pointer group">
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-amber-50 text-[#D97706] flex items-center justify-center group-hover:bg-[#D97706] group-hover:text-white transition">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                </div>
+                <div>
+                  <div class="flex items-center gap-1.5">
+                    <h3 class="font-extrabold text-base text-slate-900 group-hover:text-[#D97706] transition">Rapport-Chantier-Pro</h3>
+                    <span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">BTP</span>
+                  </div>
+                  <p class="text-xs text-slate-500 mt-0.5">Compte-rendu de chantier avec photos terrain</p>
+                </div>
+              </div>
+              <svg class="w-5 h-5 text-slate-300 group-hover:text-[#D97706] group-hover:translate-x-0.5 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            </div>
+            
+            <div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+              <span class="text-slate-400 font-medium">Travaux + Matériaux + 1 à 4 Photos</span>
+              <span id="quota-chantier" class="font-bold text-amber-700 bg-amber-50/80 px-2 py-0.5 rounded-full">5/5 gratuits ce mois</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Privacy & Local Badge -->
+        <div class="bg-slate-100 rounded-2xl p-3.5 border border-slate-200 text-center">
+          <p class="text-xs text-slate-600 font-medium">
+            🔒 <strong>100% Confidentialité locale</strong> : L'IA s'exécute directement dans votre téléphone. Aucune voix, prix ou donnée client n'est envoyée sur Internet.
+          </p>
+        </div>
+      </main>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- 3. VOICE CAPTURE SCREEN -->
+    <!-- ========================================================= -->
+    <div id="screen-voice" class="hidden flex-1 flex flex-col">
+      <!-- Voice Header -->
+      <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-3 flex items-center justify-between">
+        <button type="button" id="voice-back-btn" class="p-1.5 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+        </button>
+        <div class="text-center">
+          <h2 id="voice-module-title" class="font-extrabold text-base text-slate-800">Devis-Éclair</h2>
+          <p class="text-[10px] text-[#FF6B4A] font-semibold uppercase tracking-wider">Dictée vocale en français</p>
+        </div>
+        <div class="w-8"></div>
+      </header>
+
+      <main class="flex-1 p-4 flex flex-col justify-between space-y-4">
+        <!-- Top Guideline -->
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm text-center">
+          <p id="voice-module-desc" class="text-xs text-slate-600 font-medium">
+            Dictez vos fournitures, quantités, prix unitaires et journées de travail.
+          </p>
+        </div>
+
+        <!-- Big Center Stage Mic Button -->
+        <div class="my-auto flex flex-col items-center justify-center py-6">
+          <div class="relative flex items-center justify-center">
+            <!-- Ripple Effect Animation -->
+            <div id="mic-ripple" class="hidden absolute w-36 h-36 rounded-full bg-[#FF6B4A]/30 mic-pulse pointer-events-none"></div>
+            
+            <!-- Mic Circular Button -->
+            <button type="button" id="mic-button" class="relative z-10 w-24 h-24 rounded-full bg-[#FF6B4A] hover:bg-orange-600 text-white flex items-center justify-center shadow-xl shadow-orange-500/30 transition-all transform active:scale-95 cursor-pointer">
+              <svg class="w-10 h-10" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+            </button>
+          </div>
+
+          <p id="mic-status-text" class="mt-4 text-xs font-semibold text-slate-600">Appuyez sur le micro pour parler</p>
+        </div>
+
+        <!-- Real-Time Transcription Textarea -->
+        <div class="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-slate-700">Transcription en temps réel :</span>
+            <button type="button" id="voice-clear-btn" class="text-[11px] text-slate-400 hover:text-red-500 font-medium transition">
+              Effacer
+            </button>
+          </div>
+          <textarea id="voice-transcript-input" rows="3" placeholder="Votre dictée vocale s'affiche ici automatiquement. Vous pouvez également taper au clavier..." class="w-full text-sm text-slate-800 bg-slate-50/50 border border-slate-200 rounded-xl p-3 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1A365D] resize-none"></textarea>
+        </div>
+
+        <!-- Suggestion Chips -->
+        <div>
+          <p class="text-[11px] font-bold text-slate-500 mb-1.5 px-1">Exemples de dictée (touchez pour tester) :</p>
+          <div id="voice-chips-container" class="space-y-1.5">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <!-- Validate Button -->
+        <button type="button" id="voice-analyze-btn" class="w-full py-3.5 bg-[#1A365D] hover:bg-[#0D204A] text-white font-bold rounded-2xl shadow-lg shadow-blue-950/20 active:scale-[0.98] transition">
+          Valider et générer le document →
+        </button>
+      </main>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- 4. EDITOR SCREEN (Aperçu & Édition) -->
+    <!-- ========================================================= -->
+    <div id="screen-editor" class="hidden flex-1 flex flex-col">
+      <!-- Editor Header -->
+      <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-3 flex items-center justify-between">
+        <button type="button" id="editor-back-btn" class="p-1.5 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+        </button>
+        <div class="text-center">
+          <h2 class="font-extrabold text-base text-slate-800">Aperçu & Édition</h2>
+          <p class="text-[10px] text-slate-500">Corrigez les données extraites si besoin</p>
+        </div>
+        <button type="button" id="editor-revoice-btn" class="text-xs font-semibold text-[#FF6B4A] hover:text-orange-700 px-2 py-1 bg-orange-50 rounded-lg border border-orange-200">
+          🎤 Voix
+        </button>
+      </header>
+
+      <main class="flex-1 p-4 space-y-4">
+        
+        <!-- MODULE 1 EDITOR: DEVIS -->
+        <div id="editor-devis-container" class="hidden space-y-4">
+          <!-- Client & Provider Card -->
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Nom du Client :</label>
+              <input type="text" id="devis-client-name" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:bg-white focus:ring-1 focus:ring-[#1A365D]" />
+            </div>
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Artisan / Entreprise :</label>
+                <input type="text" id="devis-provider-name" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:bg-white" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Devise :</label>
+                <select id="devis-currency" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white">
+                  <option value="FCFA">FCFA</option>
+                  <option value="GNF">GNF</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Items Table -->
+          <div class="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-sm">
+            <div class="flex items-center justify-between mb-2 px-1">
+              <span class="text-xs font-bold text-slate-700 uppercase">Matériaux & Fournitures :</span>
+              <button type="button" id="devis-add-item-btn" class="text-xs text-blue-700 font-bold bg-blue-50 px-2.5 py-1 rounded-lg hover:bg-blue-100 transition">
+                + Ajouter une ligne
+              </button>
+            </div>
+            
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead>
+                  <tr class="text-slate-400 border-b border-slate-100">
+                    <th class="py-1 px-2 font-medium">Article</th>
+                    <th class="py-1 px-2 font-medium text-center">Qté</th>
+                    <th class="py-1 px-2 font-medium text-right">Prix Unit.</th>
+                    <th class="py-1 px-2 font-medium text-right">Total</th>
+                    <th class="py-1 px-1"></th>
+                  </tr>
+                </thead>
+                <tbody id="devis-items-tbody">
+                  <!-- Injected via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Labor Card -->
+          <div class="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 shadow-sm">
+            <span class="text-xs font-bold text-amber-800 uppercase block mb-2">Main d'œuvre & Prestations :</span>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-slate-600 mb-1">Nombre de jours :</label>
+                <input type="number" id="devis-labor-days" min="0" class="w-full bg-white border border-amber-300 rounded-xl px-3 py-1.5 text-sm font-bold text-slate-800" onchange="window.updateDevisLabor()" />
+              </div>
+              <div>
+                <label class="block text-xs text-slate-600 mb-1">Tarif / jour :</label>
+                <input type="number" id="devis-labor-rate" min="0" class="w-full bg-white border border-amber-300 rounded-xl px-3 py-1.5 text-sm font-bold text-slate-800" onchange="window.updateDevisLabor()" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Calculated Totals (Calculs JavaScript stricts) -->
+          <div class="bg-[#1A365D] text-white rounded-2xl p-4 shadow-md space-y-1.5">
+            <div class="flex justify-between text-xs text-slate-300">
+              <span>Sous-total fournitures :</span>
+              <span id="devis-subtotal-items" class="font-semibold text-white">0 FCFA</span>
+            </div>
+            <div class="flex justify-between text-xs text-slate-300">
+              <span>Sous-total main d'œuvre :</span>
+              <span id="devis-subtotal-labor" class="font-semibold text-white">0 FCFA</span>
+            </div>
+            <div class="pt-2 border-t border-slate-700/80 flex justify-between items-baseline">
+              <span class="text-sm font-bold">TOTAL GÉNÉRAL :</span>
+              <span id="devis-grand-total" class="text-2xl font-black text-[#FF6B4A]">0 FCFA</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODULE 2 EDITOR: COTIS -->
+        <div id="editor-cotis-container" class="hidden space-y-4">
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm">
+            <label class="block text-xs font-bold text-slate-600 mb-1">Nom de l'Association / Tontine :</label>
+            <input type="text" id="cotis-assoc-name" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:bg-white" />
+          </div>
+
+          <div class="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-sm">
+            <div class="flex items-center justify-between mb-2 px-1">
+              <span class="text-xs font-bold text-slate-700 uppercase">Cotisations enregistrées :</span>
+              <div class="flex items-center gap-1.5">
+                <button type="button" id="cotis-voice-append-btn" class="text-xs text-[#FF6B4A] font-bold bg-orange-50 px-2 py-1 rounded-lg hover:bg-orange-100 transition">
+                  🎤 Dictée suite
+                </button>
+                <button type="button" id="cotis-add-item-btn" class="text-xs text-teal-700 font-bold bg-teal-50 px-2.5 py-1 rounded-lg hover:bg-teal-100 transition">
+                  + Membre
+                </button>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead>
+                  <tr class="text-slate-400 border-b border-slate-100">
+                    <th class="py-1 px-2 font-medium">Membre</th>
+                    <th class="py-1 px-2 font-medium">Motif</th>
+                    <th class="py-1 px-2 font-medium text-right">Montant</th>
+                    <th class="py-1 px-2 font-medium text-center">Statut</th>
+                    <th class="py-1 px-1"></th>
+                  </tr>
+                </thead>
+                <tbody id="cotis-items-tbody">
+                  <!-- Injected via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Summary banner -->
+          <div class="bg-teal-900 text-white rounded-2xl p-4 shadow-md flex items-center justify-between">
+            <div>
+              <p class="text-xs text-teal-200 font-medium">Total collecté ce jour :</p>
+              <p id="cotis-total-collected" class="text-2xl font-black text-[#FF6B4A]">0 FCFA</p>
+            </div>
+            <div class="text-right">
+              <p class="text-xs text-teal-200 font-medium">Contributeurs :</p>
+              <p id="cotis-count-members" class="text-lg font-bold text-white">0 membres</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODULE 3 EDITOR: CHANTIER -->
+        <div id="editor-chantier-container" class="hidden space-y-4">
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm">
+            <label class="block text-xs font-bold text-slate-600 mb-1">Nom / Emplacement du Chantier :</label>
+            <input type="text" id="chantier-site-name" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:bg-white" />
+          </div>
+
+          <!-- Section Travaux réalisés -->
+          <div class="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-sm">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold text-slate-700 uppercase">1. Travaux réalisés ce jour :</span>
+              <button type="button" id="chantier-add-work-btn" class="text-xs text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-lg">+ Tâche</button>
+            </div>
+            <div id="chantier-work-list"></div>
+          </div>
+
+          <!-- Section Matériaux consommés -->
+          <div class="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-sm">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold text-slate-700 uppercase">2. Matériaux consommés :</span>
+              <button type="button" id="chantier-add-used-btn" class="text-xs text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-lg">+ Matériau</button>
+            </div>
+            <div id="chantier-used-list"></div>
+          </div>
+
+          <!-- Section Besoins pour la suite -->
+          <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 shadow-sm">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold text-amber-900 uppercase">3. Besoins urgents & commandes :</span>
+              <button type="button" id="chantier-add-needed-btn" class="text-xs text-amber-800 font-bold bg-amber-100 px-2 py-0.5 rounded-lg">+ Commande</button>
+            </div>
+            <div id="chantier-needed-list"></div>
+          </div>
+
+          <!-- Section Photos Terrain -->
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-xs font-bold text-slate-800 uppercase block">4. Photos du chantier (1 à 4 clichés) :</span>
+                <span class="text-[11px] text-slate-500">Capture caméra ou sélection galerie</span>
+              </div>
+              <label class="cursor-pointer bg-[#1A365D] hover:bg-[#0D204A] text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow transition flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                <span>Prendre photo</span>
+                <input type="file" id="chantier-camera-input" accept="image/*" capture="environment" multiple class="hidden" />
+              </label>
+            </div>
+
+            <div id="chantier-photos-grid" class="grid grid-cols-2 gap-2.5">
+              <!-- Rendered photos thumbnails -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Generate Document CTA -->
+        <div class="pt-2">
+          <button type="button" id="editor-generate-btn" class="w-full py-4 bg-gradient-to-r from-[#FF6B4A] to-[#FF8A00] hover:from-[#f55936] hover:to-[#e67c00] text-white font-extrabold rounded-2xl shadow-lg shadow-orange-950/20 active:scale-[0.98] transition">
+            Générer le document final (Canvas) →
+          </button>
+        </div>
+      </main>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- 5. SHARE & EXPORT SCREEN -->
+    <!-- ========================================================= -->
+    <div id="screen-share" class="hidden flex-1 flex flex-col">
+      <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-3 flex items-center justify-between">
+        <button type="button" onclick="window.renderScreen('editor')" class="p-1.5 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+        </button>
+        <div class="text-center">
+          <h2 class="font-extrabold text-base text-slate-800">Document généré</h2>
+          <p class="text-[10px] text-emerald-600 font-bold">Rendu Canvas haute résolution prêt</p>
+        </div>
+        <div class="w-8"></div>
+      </header>
+
+      <main class="flex-1 p-4 space-y-4">
+        <!-- Canvas Live Preview Container -->
+        <div id="share-canvas-preview" class="w-full overflow-hidden rounded-2xl bg-white border border-slate-200/80 shadow-md">
+          <!-- Canvas injected here -->
+        </div>
+
+        <!-- Sharing Actions -->
+        <div class="space-y-2.5">
+          <!-- Primary: WhatsApp Share -->
+          <button type="button" id="share-whatsapp-btn" class="w-full py-3.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white font-extrabold rounded-2xl shadow-lg shadow-emerald-950/20 flex items-center justify-center gap-2 transition active:scale-[0.98]">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.274.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.045.072.045.419-.1.824zm-3.423-10.416c-4.298 0-7.79 3.492-7.791 7.79 0 1.488.423 2.879 1.157 4.067l-1.206 4.405 4.542-1.19c1.139.673 2.463 1.05 3.303 1.05 4.298 0 7.79-3.492 7.791-7.79-.001-4.298-3.493-7.791-7.791-7.791z"/></svg>
+            <span>Partager sur WhatsApp</span>
+          </button>
+
+          <!-- Secondary: Download Image PNG -->
+          <button type="button" id="share-download-btn" class="w-full py-3.5 bg-white hover:bg-slate-50 text-[#1A365D] border border-slate-300 font-bold rounded-2xl shadow-sm flex items-center justify-center gap-2 transition active:scale-[0.98]">
+            <svg class="w-5 h-5 text-[#FF6B4A]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            <span>Télécharger l'image PNG (Haute Définition)</span>
+          </button>
+
+          <!-- Native System Share -->
+          <button type="button" id="share-native-btn" class="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+            <span>Partager via le système...</span>
+          </button>
+        </div>
+
+        <!-- Return Home CTA -->
+        <button type="button" id="share-new-doc-btn" class="w-full py-3 text-slate-500 hover:text-slate-800 text-xs font-bold text-center transition">
+          ← Créer un autre document
+        </button>
+      </main>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- 6. FREEMIUM LIMIT SCREEN -->
+    <!-- ========================================================= -->
+    <div id="screen-limit" class="hidden flex-1 flex flex-col justify-between p-6 bg-white text-center">
+      <div class="my-auto max-w-xs mx-auto">
+        <div class="w-20 h-20 mx-auto rounded-3xl bg-orange-50 border border-orange-200 flex items-center justify-center text-[#FF6B4A] mb-5 shadow-sm">
+          <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        </div>
+
+        <h2 class="text-xl font-extrabold text-slate-900">Quota mensuel atteint</h2>
+        <p class="text-xs font-bold text-[#FF6B4A] uppercase tracking-wider mt-1" id="limit-module-name">Devis-Éclair</p>
+        
+        <p class="text-xs text-slate-600 mt-3 leading-relaxed">
+          Vous avez utilisé vos <strong>5 documents gratuits</strong> pour ce mois-ci sur ce module.
+        </p>
+        <p class="text-xs text-slate-400 mt-2">
+          Vos quotas gratuits seront automatiquement réinitialisés le 1er du mois prochain.
+        </p>
+
+        <div class="mt-8 space-y-3">
+          <!-- Disabled unlock button -->
+          <button type="button" disabled class="w-full py-3.5 bg-slate-200 text-slate-400 font-bold text-xs rounded-xl cursor-not-allowed border border-slate-300">
+            Débloquer l'accès illimité (bientôt disponible)
+          </button>
+
+          <!-- Testing reset button -->
+          <button type="button" id="limit-reset-btn" class="w-full py-2.5 bg-orange-50 hover:bg-orange-100 text-[#FF6B4A] font-semibold text-xs rounded-xl border border-orange-200 transition">
+            🔄 Réinitialiser les quotas de test (Démo)
+          </button>
+        </div>
+      </div>
+
+      <button type="button" id="limit-home-btn" class="w-full py-3.5 bg-[#1A365D] hover:bg-[#0D204A] text-white font-bold text-xs rounded-xl transition">
+        Retour à l'accueil
+      </button>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- 7. ABOUT & SECURITY SCREEN -->
+    <!-- ========================================================= -->
+    <div id="screen-about" class="hidden flex-1 flex flex-col">
+      <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-3 flex items-center justify-between">
+        <button type="button" onclick="window.renderScreen('home')" class="p-1.5 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+        </button>
+        <h2 class="font-extrabold text-base text-slate-800">À propos & Sécurité</h2>
+        <div class="w-8"></div>
+      </header>
+
+      <main class="flex-1 p-4 space-y-4 text-xs text-slate-700 leading-relaxed">
+        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm text-center">
+          <img src="/icons/logo-diktao.svg" alt="Diktao" class="w-32 h-32 mx-auto mb-2 object-contain" />
+          <h3 class="text-lg font-black text-[#0D204A]">Diktao PWA</h3>
+          <p class="text-xs text-[#FF6B4A] font-bold">L'intelligence artificielle vocale 100% locale</p>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+          <div class="flex items-start gap-3">
+            <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 font-bold">🔒</div>
+            <div>
+              <h4 class="font-bold text-slate-900 text-sm">Confidentialité Totale</h4>
+              <p class="text-slate-500 mt-0.5">Aucune donnée vocale, client ou tarifaire ne quitte jamais votre téléphone. Tout est traité sur l'appareil.</p>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3 pt-3 border-t border-slate-100">
+            <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 font-bold">⚡</div>
+            <div>
+              <h4 class="font-bold text-slate-900 text-sm">Fonctionne 100% Hors-Ligne</h4>
+              <p class="text-slate-500 mt-0.5">Même sans réseau ni connexion 4G, sur un chantier isolé ou en réunion, Diktao fonctionne sans interruption.</p>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3 pt-3 border-t border-slate-100">
+            <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 font-bold">🌍</div>
+            <div>
+              <h4 class="font-bold text-slate-900 text-sm">Conçu pour l'Afrique Francophone</h4>
+              <p class="text-slate-500 mt-0.5">Prise en compte des devises locales (FCFA, GNF), des termes artisanaux et intégration native avec WhatsApp.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Testing reset section -->
+        <div class="bg-slate-100 rounded-2xl p-4 text-center">
+          <p class="font-bold text-slate-800 text-xs">Outils de test & Démonstration</p>
+          <button type="button" onclick="window.resetQuotasForTesting(); alert('Quotas de test réinitialisés à 5 documents gratuits.');" class="mt-2 text-xs bg-white text-[#1A365D] font-bold px-3 py-1.5 rounded-xl border border-slate-300 shadow-sm">
+            Réinitialiser les quotas gratuits
+          </button>
+        </div>
+      </main>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- 8. DOCUMENTS HISTORY SCREEN -->
+    <!-- ========================================================= -->
+    <div id="screen-history" class="hidden flex-1 flex flex-col pb-20">
+      <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-3 flex items-center justify-between">
+        <button type="button" onclick="window.renderScreen('home')" class="p-1.5 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition" id="history-back-btn">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+        </button>
+        <div class="text-center">
+          <h2 class="font-extrabold text-base text-slate-800 leading-none">Documents archivés</h2>
+          <span class="text-[10px] text-emerald-600 font-semibold flex items-center justify-center gap-1 mt-0.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            IndexedDB 100% Hors-Ligne
+          </span>
+        </div>
+        <button type="button" onclick="window.exportLocalBackup()" title="Exporter une sauvegarde JSON" class="p-1.5 text-slate-600 hover:text-[#1A365D] rounded-lg hover:bg-slate-100 transition" id="history-export-btn">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+        </button>
+      </header>
+
+      <main class="flex-1 p-4">
+        <div id="history-docs-list">
+          <!-- Injected via JS -->
+        </div>
+      </main>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- BOTTOM APP NAVIGATION BAR -->
+    <!-- ========================================================= -->
+    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-6 py-2.5 flex items-center justify-around shadow-lg">
+      <button type="button" id="nav-home-btn" class="flex flex-col items-center gap-1 text-[#1A365D] hover:text-[#0D204A]">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+        <span class="text-[10px] font-bold">Accueil</span>
+      </button>
+
+      <button type="button" id="nav-history-btn" class="flex flex-col items-center gap-1 text-slate-400 hover:text-[#1A365D]">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span class="text-[10px] font-bold">Archives</span>
+      </button>
+
+      <button type="button" id="nav-about-btn" class="flex flex-col items-center gap-1 text-slate-400 hover:text-[#1A365D]">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span class="text-[10px] font-bold">À propos</span>
+      </button>
+    </nav>
+
+    <!-- ========================================================= -->
+    <!-- TOAST NOTIFICATIONS CONTAINER -->
+    <!-- ========================================================= -->
+    <div id="toast-container" class="fixed top-4 left-4 right-4 max-w-md mx-auto z-50 pointer-events-none flex flex-col gap-2"></div>
+
+    <!-- ========================================================= -->
+    <!-- IOS SAFARI INSTALL GUIDE MODAL -->
+    <!-- ========================================================= -->
+    <div id="ios-install-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+      <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4">
+        <div class="flex items-center gap-3">
+          <img src="/icons/icon-app.svg" class="w-12 h-12 rounded-2xl shadow" alt="Diktao" />
+          <div>
+            <h3 class="font-bold text-base text-slate-900">Installer Diktao</h3>
+            <p class="text-xs text-slate-500">Pour iPhone et iPad</p>
+          </div>
+        </div>
+
+        <div class="space-y-3 text-xs text-slate-700 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+          <div class="flex items-center gap-2.5">
+            <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0">1</span>
+            <span>Appuyez sur le bouton <strong>Partager</strong> en bas de Safari (icône carré avec flèche vers le haut).</span>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0">2</span>
+            <span>Faites défiler vers le bas et sélectionnez <strong>Sur l'écran d'accueil</strong>.</span>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0">3</span>
+            <span>Appuyez sur <strong>Ajouter</strong> en haut à droite.</span>
+          </div>
+        </div>
+
+        <button type="button" id="close-ios-modal" class="w-full py-3 bg-[#1A365D] hover:bg-[#0D204A] text-white font-bold text-xs rounded-xl transition">
+          Compris, fermer
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Main Application Script -->
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

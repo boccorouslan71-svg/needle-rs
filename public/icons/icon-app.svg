@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0052FF" />
+      <stop offset="100%" stop-color="#0038E0" />
+    </linearGradient>
+  </defs>
+  <!-- Background Squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#blueGrad)" />
+  
+  <!-- Wave to Document Graphic -->
+  <g fill="#FFFFFF">
+    <!-- Left Vertical Soundwave Bars -->
+    <rect x="68" y="242" width="16" height="28" rx="8" />
+    <rect x="94" y="222" width="16" height="68" rx="8" />
+    <rect x="120" y="194" width="16" height="124" rx="8" />
+    <rect x="146" y="166" width="16" height="180" rx="8" />
+    <rect x="172" y="190" width="16" height="132" rx="8" />
+    <rect x="198" y="212" width="16" height="88" rx="8" />
+    <rect x="224" y="226" width="16" height="60" rx="8" />
+
+    <!-- 4 Horizontal Connecting Lines -->
+    <rect x="248" y="200" width="115" height="16" rx="8" />
+    <rect x="252" y="234" width="111" height="16" rx="8" />
+    <rect x="254" y="268" width="109" height="16" rx="8" />
+    <rect x="250" y="302" width="85" height="16" rx="8" />
+
+    <!-- Document Sheet with Folded Corner -->
+    <!-- Document Body -->
+    <path d="M 346 195 
+             L 378 195 
+             C 382 195, 388 198, 394 204
+             L 434 244 
+             C 440 250, 442 254, 442 260
+             L 442 340 
+             C 442 358, 428 372, 410 372 
+             L 364 372 
+             C 346 372, 346 358, 346 340 
+             Z" />
+    <!-- Dog-ear fold cutout (transparent / blue) -->
+    <path d="M 388 195 L 388 238 C 388 248, 394 252, 404 252 L 442 252 Z" fill="#0038E0" />
+    <!-- Folded flap -->
+    <path d="M 390 196 L 440 248 L 402 248 C 394 248, 390 244, 390 236 Z" fill="#FFFFFF" opacity="0.95" />
+  </g>
+</svg>

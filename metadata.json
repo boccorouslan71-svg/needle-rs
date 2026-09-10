@@ -1,0 +1,6 @@
+{
+  "name": "Diktao",
+  "description": "Diktao — Application web vocale PWA pour générer devis, registres de cotisations et rapports de chantier avec IA 100% locale",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

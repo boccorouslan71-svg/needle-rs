@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="100%" height="100%">
+  <defs>
+    <!-- Megaphone Gradients -->
+    <linearGradient id="coneGrad" x1="0%" y1="30%" x2="100%" y2="70%">
+      <stop offset="0%" stop-color="#FF4D17" />
+      <stop offset="50%" stop-color="#FF7A00" />
+      <stop offset="100%" stop-color="#FFA800" />
+    </linearGradient>
+    <linearGradient id="darkDGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0E2350" />
+      <stop offset="100%" stop-color="#091838" />
+    </linearGradient>
+    <linearGradient id="hornRimGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#FFF3E0" />
+    </linearGradient>
+    <!-- African tribal pattern for D's vertical stem -->
+    <pattern id="africanPattern" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 0 0 L 20 20 L 0 40 Z" fill="#1C3F85" opacity="0.65" />
+      <path d="M 40 0 L 20 20 L 40 40 Z" fill="#15326D" opacity="0.65" />
+      <circle cx="20" cy="20" r="3.5" fill="#3D68BE" opacity="0.8" />
+      <circle cx="8" cy="10" r="2" fill="#3D68BE" opacity="0.8" />
+      <circle cx="8" cy="30" r="2" fill="#3D68BE" opacity="0.8" />
+      <circle cx="32" cy="10" r="2" fill="#3D68BE" opacity="0.8" />
+      <circle cx="32" cy="30" r="2" fill="#3D68BE" opacity="0.8" />
+    </pattern>
+  </defs>
+
+  <g id="diktao-symbol">
+    <!-- Main Letter D Body -->
+    <!-- Outer D curve -->
+    <path d="M 170 85 
+             L 330 85 
+             C 440 85, 510 160, 510 275 
+             C 510 390, 440 465, 330 465 
+             L 170 465 
+             Z" 
+          fill="url(#darkDGrad)" />
+    
+    <!-- Inner D cutout -->
+    <path d="M 230 145 
+             L 315 145 
+             C 385 145, 435 200, 435 275 
+             C 435 350, 385 405, 315 405 
+             L 230 405 
+             Z" 
+          fill="#FFFFFF" />
+
+    <!-- African Pattern on Left Stem of D -->
+    <path d="M 170 85 L 230 85 L 230 465 L 170 465 Z" fill="url(#africanPattern)" />
+    <line x1="230" y1="85" x2="230" y2="465" stroke="#25488C" stroke-width="3" />
+
+    <!-- Megaphone (Emerging from center of D) -->
+    <!-- Cone body -->
+    <polygon points="230,275 390,175 390,375" fill="url(#coneGrad)" />
+    <!-- White Inner Bevel/Rim for Megaphone -->
+    <ellipse cx="390" cy="275" rx="14" ry="100" fill="url(#hornRimGrad)" stroke="#FF8A00" stroke-width="2" />
+    <ellipse cx="390" cy="275" rx="7" ry="75" fill="#FF5E00" />
+    <!-- Center speaker dome -->
+    <circle cx="410" cy="275" r="28" fill="#FF7A00" />
+
+    <!-- Soundwaves (3 Concentric Arcs to the right) -->
+    <path d="M 435 210 A 80 80 0 0 1 435 340" fill="none" stroke="#FF7A00" stroke-width="16" stroke-linecap="round" />
+    <path d="M 465 180 A 120 120 0 0 1 465 370" fill="none" stroke="#FF8E16" stroke-width="17" stroke-linecap="round" />
+    <path d="M 498 150 A 165 165 0 0 1 498 400" fill="none" stroke="#FFA726" stroke-width="18" stroke-linecap="round" />
+  </g>
+
+  <!-- Wordmark "Diktao" -->
+  <g id="diktao-wordmark" transform="translate(100, 490)">
+    <!-- Letter D -->
+    <path d="M 0 60 L 0 0 L 32 0 C 56 0, 72 13, 72 30 C 72 47, 56 60, 32 60 Z M 16 46 L 31 46 C 45 46, 54 39, 54 30 C 54 21, 45 14, 31 14 L 16 14 Z" fill="#0E2350" />
+    <!-- Orange Triangle Badge on D -->
+    <polygon points="0,0 26,0 0,26" fill="#FF7A00" />
+
+    <!-- Letter i -->
+    <rect x="88" y="18" width="15" height="42" rx="3" fill="#0E2350" />
+    <circle cx="95.5" cy="4" r="8" fill="#FF7A00" />
+
+    <!-- Letter k -->
+    <path d="M 120 60 L 120 0 L 135 0 L 135 32 L 162 18 L 180 18 L 148 35 L 182 60 L 163 60 L 135 40 L 135 60 Z" fill="#0E2350" />
+
+    <!-- Letter t -->
+    <path d="M 206 60 C 196 60, 190 54, 190 42 L 190 18 L 178 18 L 178 7 L 190 7 L 190 -8 L 205 -8 L 205 7 L 222 7 L 222 18 L 205 18 L 205 40 C 205 45, 208 47, 214 47 L 222 47 L 222 60 Z" fill="#0E2350" />
+
+    <!-- Letter a -->
+    <path d="M 235 40 C 235 26, 246 17, 262 17 C 273 17, 281 21, 285 27 L 285 18 L 299 18 L 299 60 L 285 60 L 285 52 C 280 58, 272 61, 262 61 C 246 61, 235 52, 235 40 Z M 285 39 C 285 32, 277 28, 268 28 C 259 28, 251 33, 251 39 C 251 46, 259 50, 268 50 C 277 50, 285 46, 285 39 Z" fill="#0E2350" />
+
+    <!-- Letter o -->
+    <path d="M 314 39 C 314 26, 327 17, 344 17 C 361 17, 374 26, 374 39 C 374 53, 361 61, 344 61 C 327 61, 314 53, 314 39 Z M 358 39 C 358 31, 352 28, 344 28 C 336 28, 330 31, 330 39 C 330 47, 336 50, 344 50 C 352 50, 358 47, 358 39 Z" fill="#0E2350" />
+  </g>
+</svg>
