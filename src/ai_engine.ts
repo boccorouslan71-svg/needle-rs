@@ -256,14 +256,17 @@ export function extractStructuredDevis(text: string): DevisData {
   };
 
   // 1. Client Name Extraction
-  // e.g. "Devis pour M. Mensah", "Client : M. Mensah", "Pour Madame Diallo"
-  const clientMatch = text.match(/(?:devis\s+(?:pour|de)|client\s*:?|pour\s+(?:m\.|mr\.|monsieur|mme|madame)?)\s+([A-ZÀ-Ÿ][a-zà-ÿ]+(?:\s+[A-ZÀ-Ÿ][a-zà-ÿ]+)?)/i);
-  if (clientMatch && clientMatch[1]) {
-    result.client_name = clientMatch[1].trim();
+  // e.g. "Devis pour M. Mensah", "Client : M. Mensah", "Pour Madame Diallo", "Devis pour M. Kouassi"
+  const clientMatch = text.match(/(?:devis\s+(?:pour|de)\s+|client\s*:\s*|pour\s+)(?:(m\.|mr\.|monsieur|mme|madame|dr\.)\s+)?([A-ZÀ-Ÿ][a-zà-ÿ]+(?:\s+[A-ZÀ-Ÿ][a-zà-ÿ]+)?)/i);
+  if (clientMatch && clientMatch[2]) {
+    let title = clientMatch[1] ? clientMatch[1] + ' ' : '';
+    if (title.toLowerCase().startsWith('m.') || title.toLowerCase().startsWith('mr.')) title = 'M. ';
+    else if (title.toLowerCase().startsWith('mme') || title.toLowerCase().startsWith('madame')) title = 'Mme ';
+    result.client_name = (title + clientMatch[2]).trim();
   } else {
     // Check for "M. X" or "Monsieur X" anywhere
     const mMatch = text.match(/(?:m\.|monsieur|mme|madame)\s+([A-ZÀ-Ÿ][a-zà-ÿ]+(?:\s+[A-ZÀ-Ÿ][a-zà-ÿ]+)?)/i);
-    if (mMatch && mMatch[1]) {
+    if (mMatch && mMatch[0]) {
       result.client_name = mMatch[0].trim();
     } else {
       result.client_name = 'Client Particulier';
@@ -271,34 +274,28 @@ export function extractStructuredDevis(text: string): DevisData {
   }
 
   // 2. Labor Extraction
-  // e.g. "main d'œuvre de maçonnerie 2 jours à 15000 par jour"
-  // e.g. "main d'oeuvre 3 jours a 10000"
-  const laborMatch = text.match(/main\s*d['’]?[œo]uvre(?:[^\d]+)?(\d+)\s*(?:jours?|j)\s*(?:à|a)?\s*(\d[\d\s]*)(?:\s*(?:par\s*jour|f|francs|cfa|fcfa))?/i);
+  // Supports "main d'œuvre", "main d'oeuvre", "main doeuvre", "main d œuvre" with ligature or separate letters
+  const laborRegex = /main\s*d['’]?(?:œ|oe|o)uvre[^\d]*?(\d+)\s*(?:jours?|j)\s*(?:à|a)?\s*(\d[\d\s]*)/i;
+  const laborMatch = text.match(laborRegex);
   if (laborMatch) {
     result.labor_days = parseInt(laborMatch[1], 10) || 0;
     result.labor_price_per_day = parseInt(laborMatch[2].replace(/\s+/g, ''), 10) || 0;
   }
 
-  // 3. Items Extraction
-  // Pattern A: "X sacs de ciment à Y le sac" or "X pots de peinture à Y l'unité"
-  // Pattern B: "transport 5000 francs", "livraison 3000"
-  const itemPatterns = [
-    /(\d+)\s+([a-zA-ZÀ-ÿ\s'-]+?)\s+(?:à|a)\s+(\d[\d\s]*)\s*(?:le|la|l'|un|l'unité|le\s+sac|par\s+sac|francs?|fcfa|cfa)?/gi,
-    /(?:transport|livraison|déplacement|chargement)\s+(?:de\s+)?(\d[\d\s]*)\s*(?:francs?|fcfa|cfa)?/gi
-  ];
+  // Remove labor clause before parsing items so "main d'oeuvre 1 jour à 20000" doesn't create a fake item
+  const cleanText = text.replace(/main\s*d['’]?(?:œ|oe|o)uvre.*?(?:,|$)/gi, ' ');
 
-  // Match items with quantities and unit prices
-  const cleanText = text.replace(/main\s*d['’]?[œo]uvre.*?(\d+)\s*(?:jours?).*?(\d[\d\s]*)/gi, '');
-  const regex = /(\d+)\s+([a-zà-ÿ\s'-]+?)\s+(?:à|a|au\s+prix\s+de)\s+(\d[\d\s]*)/gi;
+  // 3. Items Extraction
+  // Supports specs with digits like "fer de 12", "pots de peinture", "rouleaux", "sacs de ciment"
+  const regex = /(\d+)\s+([a-zà-ÿ0-9\s'’\.-]+?)\s+(?:à|a|au\s+prix\s+de)\s+(\d[\d\s]*)/gi;
   let match;
 
   while ((match = regex.exec(cleanText)) !== null) {
     const qty = parseInt(match[1], 10);
-    let desc = match[2].trim().replace(/\s+(le|la|les|pour|au|du)$/i, '');
+    let desc = match[2].trim().replace(/\s+(?:le|la|les|pour|au|du|le\s+sac|par\s+sac|le\s+paquet|le\s+pot|l'unité)$/i, '');
     const price = parseInt(match[3].replace(/\s+/g, ''), 10);
 
     if (desc && qty > 0 && price > 0) {
-      // Capitalize first letter
       desc = desc.charAt(0).toUpperCase() + desc.slice(1);
       result.items.push({
         id: 'item_' + Math.random().toString(36).substring(2, 9),
@@ -309,12 +306,11 @@ export function extractStructuredDevis(text: string): DevisData {
     }
   }
 
-  // Check for flat fee items like "transport 5000"
-  const transportMatch = cleanText.match(/(transport|livraison|déplacement|sable|gravier)\s+(?:de\s+)?(\d[\d\s]{3,})/i);
-  if (transportMatch) {
-    const desc = transportMatch[1].charAt(0).toUpperCase() + transportMatch[1].slice(1);
-    const price = parseInt(transportMatch[2].replace(/\s+/g, ''), 10);
-    // Don't add duplicate if already extracted
+  // Check for flat fee items like "transport 5000 francs", "livraison 3000"
+  const feeMatch = cleanText.match(/(transport|livraison|déplacement|sable|gravier)\s+(?:de\s+)?(\d[\d\s]{3,})/i);
+  if (feeMatch) {
+    const desc = feeMatch[1].charAt(0).toUpperCase() + feeMatch[1].slice(1);
+    const price = parseInt(feeMatch[2].replace(/\s+/g, ''), 10);
     if (!result.items.some(it => it.description.toLowerCase().includes(desc.toLowerCase()))) {
       result.items.push({
         id: 'item_' + Math.random().toString(36).substring(2, 9),
@@ -345,32 +341,22 @@ export function extractStructuredCotis(text: string): CotisData {
     contributions: [],
   };
 
-  // 1. Association Name Extraction if mentioned
-  const assocMatch = text.match(/(?:association|tontine|mutuelle|groupe)\s+([A-ZÀ-ÿ0-9\s'-]{3,30})/i);
-  if (assocMatch && assocMatch[1]) {
+  // 1. Association Name Extraction if explicitly stated
+  const assocMatch = text.match(/(?:association|mutuelle|groupe)\s+(?:des\s+|du\s+|de\s+)?([A-ZÀ-ÿ0-9\s'’-]{3,30}?)(?=\s*[:,\.]|\s+a\s+payé|\s+pour|$)/i);
+  if (assocMatch && assocMatch[1] && !assocMatch[1].toLowerCase().includes('tontine')) {
     result.association_name = 'Association ' + assocMatch[1].trim();
   }
 
   // 2. Member contributions
-  // e.g. "Koffi a payé sa cotisation mensuelle de 1000 francs et le droit de secours de 500 francs, Awa a payé 1000 francs seulement"
-  // Split on names or commas/conjunctions
-  // Regex looks for Name + verb (a payé / versé / donné) + amount and purpose
-  const phrases = text.split(/(?:,|\bet\b|\bpour\b)(?=\s+[A-ZÀ-ÿ])/i);
-
-  // Common names in Francophone Africa
-  const commonNames = ['Koffi', 'Awa', 'Moussa', 'Amadou', 'Fatou', 'Aminata', 'Bakary', 'Oumar', 'Kouamé', 'Yao', 'Adjoua', 'Fanta', 'Mamadou', 'Saliou', 'Ibrahim', 'Diallo', 'Traoré', 'Koné', 'N’guessan', 'Mensah'];
-  
-  // Find each member occurrence
-  const memberRegex = /([A-ZÀ-Ÿ][a-zà-ÿ]+)\s+(?:a\s+payé|a\s+versé|a\s+donné|cotise|participe)?\s*([^.,;]+)/gi;
+  const memberRegex = /([A-ZÀ-Ÿ][a-zà-ÿ]+)\s+(?:a\s+payé|a\s+versé|a\s+donné|doit|cotise|participe)?\s*([^.,;]+(?:(?:,|et)\s*(?:le\s+)?droit[^.,;]+)?)/gi;
   let m;
 
   while ((m = memberRegex.exec(text)) !== null) {
     const rawName = m[1].trim();
+    if (['Pour', 'Avec', 'Dans', 'Aujourd', 'Devis', 'Chantier'].includes(rawName)) continue;
     const rest = m[2];
 
-    // Look for amounts inside this member's clause
-    // e.g. "sa cotisation mensuelle de 1000 francs et le droit de secours de 500 francs"
-    const amountMatches = [...rest.matchAll(/(?:(cotisation(?:\s+mensuelle)?|droit\s+de\s+secours|tontine|frais|arriéré|secours)[^\d]*)?(\d[\d\s]*)\s*(?:f|francs?|cfa|fcfa)?(?:\s+(seulement|partiel|en\s+retard))?/gi)];
+    const amountMatches = [...rest.matchAll(/(?:(cotisation(?:\s+mensuelle)?|droit\s+de\s+secours|tontine|frais|arriéré|secours)[^\d]*)?(\d[\d\s]*)\s*(?:f|francs?|cfa|fcfa)?(?:\s+(seulement|partiel|en\s+retard|en\s+attente))?/gi)];
 
     for (const am of amountMatches) {
       const purpose = (am[1] || 'Cotisation mensuelle').trim();
@@ -432,17 +418,19 @@ export function extractStructuredChantier(text: string): ChantierData {
   };
 
   // 1. Site name
-  const siteMatch = text.match(/(?:chantier|projet|site)\s*(?:de|du|à|:)?\s+([A-ZÀ-ÿ0-9\s'-]{3,25})/i);
+  const siteMatch = text.match(/(?:chantier|site|projet)\s*(?:de|du|à|:)?\s+([A-ZÀ-ÿ0-9\s'’-]{3,25}?)(?=\s*[:,\.]|\s+pose|\s+crépissage|\s+coulage|\s+aujourd|\s+consommé|$)/i);
   if (siteMatch && siteMatch[1]) {
-    result.site_name = 'Chantier ' + siteMatch[1].trim();
+    const cleanSite = siteMatch[1].replace(/^[:\s]+/, '').trim();
+    if (cleanSite && !cleanSite.toLowerCase().includes('aujourd')) {
+      result.site_name = 'Chantier ' + cleanSite;
+    }
   }
 
   // 2. Work Done
-  // e.g. "Aujourd'hui nous avons coulé la dalle du premier étage"
-  const workMatches = text.match(/(?:nous\s+avons\s+|on\s+a\s+|réalisation\s+de\s+|pose\s+de\s+|coulage\s+de\s+|exécution\s+de\s+)?([a-zà-ÿ0-9\s'-]{6,45})(?:,|\.|\bconsommé\b|\bil\s+faut\b)/i);
+  const workMatches = text.match(/(?:nous\s+avons\s+|on\s+a\s+|réalisation\s+de\s+|pose\s+des?\s+|crépissage\s+de\s+|coulage\s+de\s+|exécution\s+de\s+)?([a-zà-ÿ0-9\s'’-]{6,65}?)(?:,|\.|\bconsommé\b|\bil\s+faut\b|\bbesoin\b)/i);
   if (workMatches && workMatches[1]) {
-    const task = workMatches[1].trim();
-    if (!task.includes('consommé') && !task.includes('commander')) {
+    let task = workMatches[1].trim();
+    if (!task.includes('consommé') && !task.includes('commander') && !task.startsWith("d'hui")) {
       result.work_done.push(task.charAt(0).toUpperCase() + task.slice(1));
     }
   }
@@ -451,15 +439,15 @@ export function extractStructuredChantier(text: string): ChantierData {
   }
 
   // 3. Materials Used
-  // e.g. "consommé 40 sacs de ciment"
-  const usedMatch = text.match(/(?:consommé|utilisé|posé)\s+(\d+)\s+([a-zà-ÿ\s'-]+?)(?:,|\.|\bet\b|\bil\s+faut\b)/i);
-  if (usedMatch) {
+  const usedMatches = [...text.matchAll(/(?:consommé|utilisé|posé)\s+(\d+)\s+([a-zà-ÿ0-9\s'’-]+?)(?:,|\.|\bet\s+(?=\d)|\bil\s+faut\b|\bbesoin\b|$)/gi)];
+  for (const u of usedMatches) {
     result.materials_used.push({
-      id: 'mat_u_1',
-      material: usedMatch[2].trim(),
-      quantity: usedMatch[1] + ' unités',
+      id: 'mat_u_' + Math.random().toString(36).substring(2, 7),
+      material: u[2].trim(),
+      quantity: u[1] + ' unités',
     });
-  } else {
+  }
+  if (result.materials_used.length === 0) {
     result.materials_used.push({
       id: 'mat_u_1',
       material: 'Sacs de ciment CPJ 42.5',
@@ -468,17 +456,17 @@ export function extractStructuredChantier(text: string): ChantierData {
   }
 
   // 4. Materials Needed
-  // e.g. "Il faut commander 15 paquets de fer de 12 pour mardi"
-  const neededMatch = text.match(/(?:commander|besoin\s+de|il\s+faut)\s+(\d+)\s+([a-zà-ÿ0-9\s'-]+?)(?:\s+(?:pour|d'ici|avant)\s+([a-zà-ÿ0-9]+))?(?:$|\.)/i);
-  if (neededMatch) {
+  const needMatches = [...text.matchAll(/(?:commander|besoin(?:\s+urgent)?\s+de|il\s+faut)\s+(\d+)\s+([a-zà-ÿ0-9\s'’-]+?)(?:\s+(?:pour|d['’]ici|avant)\s+([a-zà-ÿ0-9]+))?(?:,|\.|$)/gi)];
+  for (const n of needMatches) {
     result.materials_needed.push({
-      id: 'mat_n_1',
-      material: neededMatch[2].trim(),
-      quantity: neededMatch[1],
-      deadline: neededMatch[3] ? `Pour ${neededMatch[3]}` : 'Urgent (Semaine prochaine)',
+      id: 'mat_n_' + Math.random().toString(36).substring(2, 7),
+      material: n[2].trim(),
+      quantity: n[1],
+      deadline: n[3] ? (n[3].startsWith('d') ? n[3] : 'Pour ' + n[3]) : 'Urgent (Semaine prochaine)',
       urgent: true,
     });
-  } else {
+  }
+  if (result.materials_needed.length === 0) {
     result.materials_needed.push({
       id: 'mat_n_1',
       material: 'Paquets de fer de 12 mm',

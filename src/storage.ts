@@ -333,3 +333,51 @@ export async function exportLocalDataBackup(): Promise<string> {
     documents: docs,
   }, null, 2);
 }
+
+// -------------------------------------------------------------
+// DRAFT PERSISTENCE (Safe Auto-save preventing data loss on mobile)
+// -------------------------------------------------------------
+const DRAFT_LOCAL_KEY = 'diktao_active_draft_v1';
+
+export interface ActiveDraft {
+  module: ModuleType;
+  data: DevisData | CotisData | ChantierData;
+  transcript?: string;
+  updatedAt: number;
+}
+
+export function saveActiveDraft(module: ModuleType, data: any, transcript = ''): void {
+  try {
+    const draft: ActiveDraft = {
+      module,
+      data,
+      transcript,
+      updatedAt: Date.now(),
+    };
+    localStorage.setItem(DRAFT_LOCAL_KEY, JSON.stringify(draft));
+  } catch (e) {
+    console.warn('Failed to save active draft:', e);
+  }
+}
+
+export function getActiveDraft(): ActiveDraft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_LOCAL_KEY);
+    if (!raw) return null;
+    const parsed: ActiveDraft = JSON.parse(raw);
+    // Ignore stale drafts older than 7 days
+    if (Date.now() - parsed.updatedAt > 7 * 24 * 3600 * 1000) {
+      clearActiveDraft();
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function clearActiveDraft(): void {
+  try {
+    localStorage.removeItem(DRAFT_LOCAL_KEY);
+  } catch {}
+}

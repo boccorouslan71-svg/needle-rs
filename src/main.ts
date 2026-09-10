@@ -18,7 +18,11 @@ import {
   deleteSavedDocument, 
   openDiktaoDB, 
   exportLocalDataBackup, 
-  type SavedDoc 
+  saveActiveDraft,
+  getActiveDraft,
+  clearActiveDraft,
+  type SavedDoc,
+  type ActiveDraft
 } from './storage';
 import { 
   initWasmEngine, 
@@ -112,13 +116,22 @@ export async function initApp() {
   // Bind static DOM event listeners
   bindEventListeners();
 
+  // Listen to browser / Android physical back button
+  window.addEventListener('popstate', (e) => {
+    if (e.state && e.state.screen) {
+      renderScreen(e.state.screen, false);
+    } else {
+      renderScreen('home', false);
+    }
+  });
+
   // Initial navigation
-  renderScreen('splash');
+  renderScreen('splash', false);
 
   // Auto transition from splash to home after 1.8s
   setTimeout(() => {
     if (activeScreen === 'splash') {
-      renderScreen('home');
+      renderScreen('home', true);
     }
   }, 2200);
 }
@@ -158,9 +171,60 @@ function updateMicButtonUI(isListening: boolean) {
   }
 }
 
-// Navigation Router
-export function renderScreen(screen: ActiveScreen) {
+// Synchronize all editor form fields into current state object
+export function syncAllEditorInputs() {
+  if (currentModule === 'devis' && currentDevis) {
+    const clientInput = document.getElementById('devis-client-name') as HTMLInputElement;
+    const providerInput = document.getElementById('devis-provider-name') as HTMLInputElement;
+    const currencySelect = document.getElementById('devis-currency') as HTMLSelectElement;
+    const laborDaysInput = document.getElementById('devis-labor-days') as HTMLInputElement;
+    const laborRateInput = document.getElementById('devis-labor-rate') as HTMLInputElement;
+
+    if (clientInput) currentDevis.client_name = clientInput.value.trim();
+    if (providerInput) currentDevis.provider_name = providerInput.value.trim();
+    if (currencySelect) currentDevis.currency = currencySelect.value;
+    if (laborDaysInput) currentDevis.labor_days = parseFloat(laborDaysInput.value) || 0;
+    if (laborRateInput) currentDevis.labor_price_per_day = parseFloat(laborRateInput.value) || 0;
+  } else if (currentModule === 'cotis' && currentCotis) {
+    const assocInput = document.getElementById('cotis-assoc-name') as HTMLInputElement;
+    if (assocInput) currentCotis.association_name = assocInput.value.trim();
+  } else if (currentModule === 'chantier' && currentChantier) {
+    const siteInput = document.getElementById('chantier-site-name') as HTMLInputElement;
+    if (siteInput) currentChantier.site_name = siteInput.value.trim();
+  }
+}
+
+// Save active in-progress draft to prevent any data loss
+export function saveCurrentDraft() {
+  let data: any = null;
+  if (currentModule === 'devis' && currentDevis) data = currentDevis;
+  else if (currentModule === 'cotis' && currentCotis) data = currentCotis;
+  else if (currentModule === 'chantier' && currentChantier) data = currentChantier;
+
+  if (data) {
+    const transcriptInput = document.getElementById('voice-transcript-input') as HTMLTextAreaElement;
+    saveActiveDraft(currentModule, data, transcriptInput?.value || '');
+  }
+}
+
+// Navigation Router with History & Draft Safeguards
+export function renderScreen(screen: ActiveScreen, pushHistory = true) {
+  // If leaving editor or voice screen, automatically sync and save active draft
+  if (activeScreen === 'editor' || activeScreen === 'voice') {
+    syncAllEditorInputs();
+    saveCurrentDraft();
+  }
+
   activeScreen = screen;
+
+  // Manage browser history for popstate & back button handling
+  if (pushHistory) {
+    try {
+      window.history.pushState({ screen }, '', `#${screen}`);
+    } catch {
+      // Ignore if history manipulation is restricted in sandbox
+    }
+  }
 
   // Hide all screens
   const screenIds = ['screen-splash', 'screen-home', 'screen-voice', 'screen-editor', 'screen-share', 'screen-limit', 'screen-about', 'screen-history'];
@@ -176,15 +240,43 @@ export function renderScreen(screen: ActiveScreen) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  // Update bottom navigation bar active states
+  updateNavBarUI(screen);
+
   // Update screen-specific state
   if (screen === 'home') {
     updateHomeQuotasUI();
+    updateHomeDraftUI();
   } else if (screen === 'voice') {
     setupVoiceScreenUI();
   } else if (screen === 'editor') {
     setupEditorScreenUI();
   } else if (screen === 'history') {
     setupHistoryScreenUI();
+  }
+}
+
+function updateNavBarUI(screen: ActiveScreen) {
+  const homeBtn = document.getElementById('nav-home-btn');
+  const historyBtn = document.getElementById('nav-history-btn');
+  const aboutBtn = document.getElementById('nav-about-btn');
+
+  [homeBtn, historyBtn, aboutBtn].forEach(btn => {
+    if (btn) {
+      btn.classList.remove('text-[#1A365D]', 'font-bold');
+      btn.classList.add('text-slate-400');
+    }
+  });
+
+  if (screen === 'home' && homeBtn) {
+    homeBtn.classList.add('text-[#1A365D]', 'font-bold');
+    homeBtn.classList.remove('text-slate-400');
+  } else if (screen === 'history' && historyBtn) {
+    historyBtn.classList.add('text-[#1A365D]', 'font-bold');
+    historyBtn.classList.remove('text-slate-400');
+  } else if (screen === 'about' && aboutBtn) {
+    aboutBtn.classList.add('text-[#1A365D]', 'font-bold');
+    aboutBtn.classList.remove('text-slate-400');
   }
 }
 
@@ -202,6 +294,73 @@ function updateHomeQuotasUI() {
   if (chantierBadge) chantierBadge.textContent = `${chantierQuota}/5 gratuits ce mois`;
 }
 
+function updateHomeDraftUI() {
+  const banner = document.getElementById('home-draft-banner');
+  const titleEl = document.getElementById('home-draft-title');
+  const descEl = document.getElementById('home-draft-desc');
+  const resumeBtn = document.getElementById('home-draft-resume-btn');
+  const clearBtn = document.getElementById('home-draft-clear-btn');
+
+  if (!banner) return;
+
+  const draft = getActiveDraft();
+  if (draft && draft.data) {
+    banner.classList.remove('hidden');
+    let title = 'Document en cours';
+    let desc = 'Reprenez votre saisie sans rien recommencer.';
+
+    if (draft.module === 'devis') {
+      const d = draft.data as DevisData;
+      const totals = computeDevisTotals(d);
+      title = `Devis — ${d.client_name || 'Client'} (${formatMoney(totals.total_general)} ${d.currency || 'FCFA'})`;
+      desc = `${d.items?.length || 0} fourniture(s) • Main d'œuvre incluse`;
+    } else if (draft.module === 'cotis') {
+      const c = draft.data as CotisData;
+      const totals = computeCotisTotals(c);
+      title = `Cotisations — ${c.association_name || 'Association'} (${formatMoney(totals.total_collected)} FCFA)`;
+      desc = `${c.contributions?.length || 0} membre(s) enregistré(s)`;
+    } else if (draft.module === 'chantier') {
+      const ch = draft.data as ChantierData;
+      title = `Rapport Chantier — ${ch.site_name || 'Chantier'}`;
+      desc = `${ch.work_done?.length || 0} tâche(s) • ${ch.photos?.length || 0} photo(s)`;
+    }
+
+    if (titleEl) titleEl.textContent = title;
+    if (descEl) descEl.textContent = desc;
+
+    if (resumeBtn) {
+      resumeBtn.onclick = () => {
+        currentModule = draft.module;
+        if (draft.module === 'devis') currentDevis = draft.data as DevisData;
+        else if (draft.module === 'cotis') currentCotis = draft.data as CotisData;
+        else currentChantier = draft.data as ChantierData;
+
+        // Restore voice transcript if any
+        const transcriptInput = document.getElementById('voice-transcript-input') as HTMLTextAreaElement;
+        if (transcriptInput && draft.transcript) {
+          transcriptInput.value = draft.transcript;
+        }
+
+        renderScreen('editor');
+        showToast("Brouillon en cours restauré !", "success");
+      };
+    }
+
+    if (clearBtn) {
+      clearBtn.onclick = () => {
+        clearActiveDraft();
+        if (currentModule === 'devis') currentDevis = null;
+        else if (currentModule === 'cotis') currentCotis = null;
+        else currentChantier = null;
+        banner.classList.add('hidden');
+        showToast("Brouillon effacé.", "info");
+      };
+    }
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+
 function selectModuleAndStart(module: ModuleType) {
   currentModule = module;
 
@@ -214,6 +373,23 @@ function selectModuleAndStart(module: ModuleType) {
       else if (module === 'cotis') limitTitle.textContent = 'Cotis-Métier';
       else limitTitle.textContent = 'Rapport-Chantier-Pro';
     }
+    return;
+  }
+
+  // Check if an existing draft exists for this specific module
+  const draft = getActiveDraft();
+  if (draft && draft.module === module && draft.data) {
+    if (module === 'devis') currentDevis = draft.data as DevisData;
+    else if (module === 'cotis') currentCotis = draft.data as CotisData;
+    else currentChantier = draft.data as ChantierData;
+
+    const transcriptInput = document.getElementById('voice-transcript-input') as HTMLTextAreaElement;
+    if (transcriptInput && draft.transcript) {
+      transcriptInput.value = draft.transcript;
+    }
+
+    renderScreen('editor');
+    showToast("Votre document en cours a été repris.", "info");
     return;
   }
 
@@ -256,12 +432,26 @@ function setupVoiceScreenUI() {
     phrases.forEach((phrase, idx) => {
       const chip = document.createElement('button');
       chip.type = 'button';
-      chip.className = 'text-left text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg border border-slate-200 transition line-clamp-2';
-      chip.innerHTML = `<span class="text-[#FF6B4A] font-semibold">Exemple ${idx + 1} :</span> "${phrase}"`;
+      chip.className = 'w-full text-left bg-white hover:bg-slate-50 active:bg-slate-100 p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs transition group flex flex-col gap-1.5 focus:outline-none focus:ring-2 focus:ring-[#1A365D]/20 cursor-pointer';
+      chip.innerHTML = `
+        <div class="flex items-center justify-between w-full">
+          <span class="inline-flex items-center gap-1.5 text-xs font-bold text-[#FF6B4A]">
+            <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            <span>Exemple ${idx + 1}</span>
+          </span>
+          <span class="text-[10px] text-slate-400 group-hover:text-slate-600 font-medium bg-slate-100 px-2 py-0.5 rounded-md transition shrink-0">
+            Toucher pour insérer
+          </span>
+        </div>
+        <p class="text-xs text-slate-700 leading-relaxed font-normal break-words m-0 select-none">
+          “${escapeHtml(phrase)}”
+        </p>
+      `;
       chip.onclick = () => {
         if (transcriptInput) {
           transcriptInput.value = phrase;
           speechRecognizer?.setText(phrase);
+          showToast(`Exemple ${idx + 1} inséré dans la zone de texte`, 'info');
         }
       };
       chipsContainer.appendChild(chip);
@@ -309,8 +499,9 @@ async function handleAnalyzeVoice() {
       currentChantier = extracted as ChantierData;
     }
 
-    // Go to Editor
+    // Go to Editor and persist draft
     renderScreen('editor');
+    saveCurrentDraft();
   } catch (err) {
     console.error('Extraction error:', err);
     showToast("Erreur lors de l'extraction. Veuillez réessayer.", "error");
@@ -552,64 +743,93 @@ function renderPhotosPreviewGrid() {
 // -------------------------------------------------------------
 
 async function handleGenerateFinalDocument() {
-  const canvas = document.createElement('canvas');
-  generatedCanvas = canvas;
-
-  const previewContainer = document.getElementById('share-canvas-preview');
-  if (previewContainer) {
-    previewContainer.innerHTML = '<div class="text-center py-10 text-slate-500 text-sm">Génération du document haute résolution en cours...</div>';
+  const generateBtn = document.getElementById('editor-generate-btn') as HTMLButtonElement;
+  if (generateBtn) {
+    generateBtn.disabled = true;
+    generateBtn.innerHTML = `
+      <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white inline" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      Génération du document en cours...
+    `;
   }
 
-  // Render Canvas depending on module
-  if (currentModule === 'devis' && currentDevis) {
-    renderDevisToCanvas(canvas, currentDevis);
-    consumeQuota('devis');
-    const thumb = canvas.toDataURL('image/jpeg', 0.5);
-    await saveDocument({
-      id: 'doc_' + Date.now(),
-      type: 'devis',
-      title: `Devis — ${currentDevis.client_name || 'Client'}`,
-      date: currentDevis.date,
-      createdAt: Date.now(),
-      data: currentDevis,
-      thumbnail: thumb,
-    });
-  } else if (currentModule === 'cotis' && currentCotis) {
-    renderCotisToCanvas(canvas, currentCotis);
-    consumeQuota('cotis');
-    const thumb = canvas.toDataURL('image/jpeg', 0.5);
-    await saveDocument({
-      id: 'doc_' + Date.now(),
-      type: 'cotis',
-      title: `Registre — ${currentCotis.association_name}`,
-      date: currentCotis.date,
-      createdAt: Date.now(),
-      data: currentCotis,
-      thumbnail: thumb,
-    });
-  } else if (currentModule === 'chantier' && currentChantier) {
-    await renderChantierToCanvas(canvas, currentChantier);
-    consumeQuota('chantier');
-    const thumb = canvas.toDataURL('image/jpeg', 0.5);
-    await saveDocument({
-      id: 'doc_' + Date.now(),
-      type: 'chantier',
-      title: `Rapport — ${currentChantier.site_name}`,
-      date: currentChantier.date,
-      createdAt: Date.now(),
-      data: currentChantier,
-      thumbnail: thumb,
-    });
-  }
+  try {
+    // 1. Sync latest edits from inputs into memory
+    syncAllEditorInputs();
 
-  // Inject rendered canvas into preview container
-  if (previewContainer) {
-    previewContainer.innerHTML = '';
-    canvas.className = 'w-full h-auto rounded-xl shadow-xl border border-slate-200';
-    previewContainer.appendChild(canvas);
-  }
+    const canvas = document.createElement('canvas');
+    generatedCanvas = canvas;
 
-  renderScreen('share');
+    const previewContainer = document.getElementById('share-canvas-preview');
+    if (previewContainer) {
+      previewContainer.innerHTML = '<div class="text-center py-10 text-slate-500 text-sm font-medium">Génération du document haute résolution en cours...</div>';
+    }
+
+    // Render Canvas depending on module
+    if (currentModule === 'devis' && currentDevis) {
+      renderDevisToCanvas(canvas, currentDevis);
+      consumeQuota('devis');
+      const thumb = canvas.toDataURL('image/jpeg', 0.5);
+      await saveDocument({
+        id: 'doc_' + Date.now(),
+        type: 'devis',
+        title: `Devis — ${currentDevis.client_name || 'Client'}`,
+        date: currentDevis.date,
+        createdAt: Date.now(),
+        data: currentDevis,
+        thumbnail: thumb,
+      });
+    } else if (currentModule === 'cotis' && currentCotis) {
+      renderCotisToCanvas(canvas, currentCotis);
+      consumeQuota('cotis');
+      const thumb = canvas.toDataURL('image/jpeg', 0.5);
+      await saveDocument({
+        id: 'doc_' + Date.now(),
+        type: 'cotis',
+        title: `Registre — ${currentCotis.association_name}`,
+        date: currentCotis.date,
+        createdAt: Date.now(),
+        data: currentCotis,
+        thumbnail: thumb,
+      });
+    } else if (currentModule === 'chantier' && currentChantier) {
+      await renderChantierToCanvas(canvas, currentChantier);
+      consumeQuota('chantier');
+      const thumb = canvas.toDataURL('image/jpeg', 0.5);
+      await saveDocument({
+        id: 'doc_' + Date.now(),
+        type: 'chantier',
+        title: `Rapport — ${currentChantier.site_name}`,
+        date: currentChantier.date,
+        createdAt: Date.now(),
+        data: currentChantier,
+        thumbnail: thumb,
+      });
+    }
+
+    // Inject rendered canvas into preview container
+    if (previewContainer) {
+      previewContainer.innerHTML = '';
+      canvas.className = 'w-full h-auto rounded-xl shadow-xl border border-slate-200';
+      previewContainer.appendChild(canvas);
+    }
+
+    // Clear active draft once successfully generated and saved to offline archives
+    clearActiveDraft();
+
+    renderScreen('share');
+    showToast("Document généré et sauvegardé avec succès !", "success");
+  } catch (err) {
+    console.error('Document generation error:', err);
+    showToast("Erreur lors de la génération. Vos données sont conservées.", "error");
+  } finally {
+    if (generateBtn) {
+      generateBtn.disabled = false;
+      generateBtn.innerHTML = `Générer le document final (Canvas) →`;
+    }
+  }
 }
 
 // -------------------------------------------------------------
@@ -804,9 +1024,28 @@ async function openArchivedDoc(docId: string) {
 function bindEventListeners() {
   // Navigation & buttons
   document.getElementById('splash-start-btn')?.addEventListener('click', () => renderScreen('home'));
-  document.getElementById('nav-home-btn')?.addEventListener('click', () => renderScreen('home'));
-  document.getElementById('nav-history-btn')?.addEventListener('click', () => renderScreen('history'));
-  document.getElementById('nav-about-btn')?.addEventListener('click', () => renderScreen('about'));
+  document.getElementById('nav-home-btn')?.addEventListener('click', () => {
+    if (activeScreen === 'voice' || activeScreen === 'editor') {
+      syncAllEditorInputs();
+      saveCurrentDraft();
+      showToast("Brouillon conservé.", "info");
+    }
+    renderScreen('home');
+  });
+  document.getElementById('nav-history-btn')?.addEventListener('click', () => {
+    if (activeScreen === 'voice' || activeScreen === 'editor') {
+      syncAllEditorInputs();
+      saveCurrentDraft();
+    }
+    renderScreen('history');
+  });
+  document.getElementById('nav-about-btn')?.addEventListener('click', () => {
+    if (activeScreen === 'voice' || activeScreen === 'editor') {
+      syncAllEditorInputs();
+      saveCurrentDraft();
+    }
+    renderScreen('about');
+  });
 
   // Module Selection
   document.getElementById('card-module-devis')?.addEventListener('click', () => selectModuleAndStart('devis'));
@@ -823,12 +1062,46 @@ function bindEventListeners() {
     if (input) input.value = '';
   });
   document.getElementById('voice-analyze-btn')?.addEventListener('click', handleAnalyzeVoice);
-  document.getElementById('voice-back-btn')?.addEventListener('click', () => renderScreen('home'));
+  document.getElementById('voice-back-btn')?.addEventListener('click', () => {
+    syncAllEditorInputs();
+    saveCurrentDraft();
+    renderScreen('home');
+  });
 
   // Editor Actions
-  document.getElementById('editor-revoice-btn')?.addEventListener('click', () => renderScreen('voice'));
+  document.getElementById('editor-revoice-btn')?.addEventListener('click', () => {
+    syncAllEditorInputs();
+    saveCurrentDraft();
+    renderScreen('voice');
+  });
   document.getElementById('editor-generate-btn')?.addEventListener('click', handleGenerateFinalDocument);
-  document.getElementById('editor-back-btn')?.addEventListener('click', () => renderScreen('home'));
+  document.getElementById('editor-back-btn')?.addEventListener('click', () => {
+    // Return to voice screen to edit or complete transcription, keeping draft safe
+    syncAllEditorInputs();
+    saveCurrentDraft();
+    renderScreen('voice');
+  });
+
+  // Auto-sync & auto-save whenever user types in any editor field
+  const liveInputIds = [
+    'devis-client-name', 'devis-provider-name', 'devis-currency',
+    'devis-labor-days', 'devis-labor-rate', 'cotis-assoc-name', 'chantier-site-name'
+  ];
+  liveInputIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', () => {
+        syncAllEditorInputs();
+        saveCurrentDraft();
+      });
+      el.addEventListener('change', () => {
+        syncAllEditorInputs();
+        saveCurrentDraft();
+        if (id.startsWith('devis-')) updateDevisCalculationsDisplay();
+        if (id.startsWith('cotis-')) updateCotisCalculationsDisplay();
+      });
+    }
+  });
 
   // Devis specific add item
   document.getElementById('devis-add-item-btn')?.addEventListener('click', () => {
@@ -942,17 +1215,38 @@ function bindEventListeners() {
     const iosModal = document.getElementById('ios-install-modal');
     if (iosModal) iosModal.classList.add('hidden');
   });
+
+  // Delete Confirmation Modal Listeners
+  document.getElementById('cancel-delete-btn')?.addEventListener('click', () => {
+    pendingDeleteDocId = null;
+    const modal = document.getElementById('confirm-delete-modal');
+    if (modal) modal.classList.add('hidden');
+  });
+
+  document.getElementById('confirm-delete-btn')?.addEventListener('click', async () => {
+    if (pendingDeleteDocId) {
+      const id = pendingDeleteDocId;
+      pendingDeleteDocId = null;
+      const modal = document.getElementById('confirm-delete-modal');
+      if (modal) modal.classList.add('hidden');
+      await deleteSavedDocument(id);
+      showToast("Document supprimé des archives locales.", "info");
+      await setupHistoryScreenUI();
+    }
+  });
 }
+
+let pendingDeleteDocId: string | null = null;
 
 // Window Globals for dynamic DOM inputs
 (window as any).renderScreen = renderScreen;
 (window as any).openArchivedDoc = openArchivedDoc;
 
-(window as any).deleteArchivedDoc = async (docId: string) => {
-  if (confirm('Voulez-vous supprimer ce document de votre base locale ?')) {
-    await deleteSavedDocument(docId);
-    showToast("Document supprimé des archives locales.", "info");
-    await setupHistoryScreenUI();
+(window as any).deleteArchivedDoc = (docId: string) => {
+  pendingDeleteDocId = docId;
+  const modal = document.getElementById('confirm-delete-modal');
+  if (modal) {
+    modal.classList.remove('hidden');
   }
 };
 
@@ -982,6 +1276,7 @@ function bindEventListeners() {
   if (daysEl) currentDevis.labor_days = parseFloat(daysEl.value) || 0;
   if (rateEl) currentDevis.labor_price_per_day = parseFloat(rateEl.value) || 0;
   updateDevisCalculationsDisplay();
+  saveCurrentDraft();
 };
 
 (window as any).resetQuotasForTesting = () => {
@@ -996,6 +1291,7 @@ function bindEventListeners() {
   else if (field === 'unit_price') currentDevis.items[idx].unit_price = parseFloat(val) || 0;
   updateDevisCalculationsDisplay();
   renderDevisItemsTable();
+  saveCurrentDraft();
 };
 
 (window as any).removeDevisItem = (idx: number) => {
@@ -1003,6 +1299,7 @@ function bindEventListeners() {
   currentDevis.items.splice(idx, 1);
   renderDevisItemsTable();
   updateDevisCalculationsDisplay();
+  saveCurrentDraft();
 };
 
 (window as any).updateCotisItem = (idx: number, field: string, val: string) => {
@@ -1012,6 +1309,7 @@ function bindEventListeners() {
   else if (field === 'amount') currentCotis.contributions[idx].amount = parseFloat(val) || 0;
   else if (field === 'payment_status') currentCotis.contributions[idx].payment_status = val as any;
   updateCotisCalculationsDisplay();
+  saveCurrentDraft();
 };
 
 (window as any).removeCotisItem = (idx: number) => {
@@ -1019,15 +1317,20 @@ function bindEventListeners() {
   currentCotis.contributions.splice(idx, 1);
   renderCotisTable();
   updateCotisCalculationsDisplay();
+  saveCurrentDraft();
 };
 
 (window as any).updateChantierWork = (idx: number, val: string) => {
-  if (currentChantier) currentChantier.work_done[idx] = val;
+  if (currentChantier) {
+    currentChantier.work_done[idx] = val;
+    saveCurrentDraft();
+  }
 };
 (window as any).removeChantierWork = (idx: number) => {
   if (currentChantier) {
     currentChantier.work_done.splice(idx, 1);
     renderChantierEditorForm();
+    saveCurrentDraft();
   }
 };
 
@@ -1035,11 +1338,13 @@ function bindEventListeners() {
   if (!currentChantier || !currentChantier.materials_used[idx]) return;
   if (field === 'material') currentChantier.materials_used[idx].material = val;
   else currentChantier.materials_used[idx].quantity = val;
+  saveCurrentDraft();
 };
 (window as any).removeChantierUsed = (idx: number) => {
   if (currentChantier) {
     currentChantier.materials_used.splice(idx, 1);
     renderChantierEditorForm();
+    saveCurrentDraft();
   }
 };
 
@@ -1048,11 +1353,13 @@ function bindEventListeners() {
   if (field === 'material') currentChantier.materials_needed[idx].material = val;
   else if (field === 'quantity') currentChantier.materials_needed[idx].quantity = val;
   else currentChantier.materials_needed[idx].deadline = val;
+  saveCurrentDraft();
 };
 (window as any).removeChantierNeeded = (idx: number) => {
   if (currentChantier) {
     currentChantier.materials_needed.splice(idx, 1);
     renderChantierEditorForm();
+    saveCurrentDraft();
   }
 };
 
@@ -1060,6 +1367,7 @@ function bindEventListeners() {
   if (currentChantier) {
     currentChantier.photos.splice(idx, 1);
     renderPhotosPreviewGrid();
+    saveCurrentDraft();
   }
 };
 
@@ -1087,6 +1395,8 @@ function showToast(message: string, type: 'info' | 'success' | 'warning' | 'erro
     setTimeout(() => toast.remove(), 300);
   }, 3500);
 }
+
+(window as any).showToast = showToast;
 
 function escapeHtml(text: string): string {
   return text

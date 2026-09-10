@@ -269,12 +269,26 @@ export function renderDevisToCanvas(canvas: HTMLCanvasElement, data: DevisData):
   ctx.textAlign = 'left';
   ctx.fillText('MONTANT TOTAL DU DEVIS', 635, currentY + 45);
 
+  const amountStr = formatMoney(totals.total_general);
+  const currencyStr = data.currency || 'FCFA';
+
+  // Responsive font size for very large totals so it never wraps or clips
+  const amountFontSize = amountStr.length > 10 ? 34 : (amountStr.length > 8 ? 38 : 42);
+  const amountFont = `bold ${amountFontSize}px system-ui, -apple-system, sans-serif`;
+
+  // Set font and measure width with the EXACT font used for numbers!
+  ctx.font = amountFont;
+  const amountWidth = ctx.measureText(amountStr).width;
+
+  // Draw total numbers in vibrant coral
   ctx.fillStyle = '#FF6B4A';
-  ctx.font = 'bold 44px system-ui, sans-serif';
-  ctx.fillText(`${formatMoney(totals.total_general)}`, 635, currentY + 95);
+  ctx.textAlign = 'left';
+  ctx.fillText(amountStr, 635, currentY + 95);
+
+  // Draw currency right after the measured amount with a comfortable gap
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 24px system-ui, sans-serif';
-  ctx.fillText(` ${data.currency}`, 635 + ctx.measureText(`${formatMoney(totals.total_general)}`).width + 10, currentY + 95);
+  ctx.font = 'bold 22px system-ui, -apple-system, sans-serif';
+  ctx.fillText(currencyStr, 635 + amountWidth + 14, currentY + 95);
 
   // Payment conditions on the left
   ctx.fillStyle = '#0F172A';

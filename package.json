@@ -3,6 +3,10 @@
   "version": "0.2.1",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./pkg/needle_wasm.js",
+    "./pkg/needle_wasm.js": "./pkg/needle_wasm.js"
+  },
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 3000",
     "build": "vite build",
