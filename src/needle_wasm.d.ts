@@ -24,6 +24,14 @@ declare module 'needle-rs' {
       | BufferSource,
   ): Promise<unknown>;
 
+  export class NeedleWasm {
+    private constructor();
+    static load(weights: Uint8Array, vocab: string): NeedleWasm | null;
+    run(query: string, toolsJson: string): string | null;
+    retrieve_tools(query: string, descriptions: string[], topK: number): string | null;
+    contrastive_dim(): number;
+  }
+
   export class NeedleV2Wasm {
     private constructor();
     static load(bytes: Uint8Array): NeedleV2Wasm | null;

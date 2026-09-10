@@ -16,6 +16,24 @@
  */
 export default async function init() {}
 
+export class NeedleWasm {
+  static load(_weights, _vocab) {
+    return null;
+  }
+
+  run(_query, _toolsJson) {
+    return null;
+  }
+
+  retrieve_tools(_query, _descriptions, _topK) {
+    return '';
+  }
+
+  contrastive_dim() {
+    return 0;
+  }
+}
+
 export class NeedleV2Wasm {
   static load(_bytes) {
     return null;
