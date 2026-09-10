@@ -21,6 +21,7 @@ export class DiktaoSpeechRecognizer {
   private onErrorChange?: (errorMessage: string) => void;
   private onStatusChange?: (listening: boolean) => void;
   private accumulatedText = '';
+  private lastFinalResultIndex = -1;
 
   constructor(
     onTranscript: (text: string, isFinal: boolean) => void,
@@ -54,6 +55,7 @@ export class DiktaoSpeechRecognizer {
       this.recognition.onstart = () => {
         this.isStarting = false;
         this.isListening = true;
+        this.lastFinalResultIndex = -1;
         this.onStatusChange?.(true);
       };
 
@@ -64,7 +66,14 @@ export class DiktaoSpeechRecognizer {
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           const res = event.results[i];
           if (res.isFinal) {
-            final += res[0].transcript + ' ';
+            // Regression: with continuous=true, Chrome re-delivers already
+            // finalized segments (resultIndex resets at each utterance
+            // boundary), which duplicated the start of the dictation.
+            // Only commit a final result the first time we see its index.
+            if (i > this.lastFinalResultIndex) {
+              final += res[0].transcript + ' ';
+              this.lastFinalResultIndex = i;
+            }
           } else {
             interim += res[0].transcript;
           }

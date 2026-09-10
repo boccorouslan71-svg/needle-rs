@@ -275,7 +275,10 @@ export function extractStructuredDevis(text: string): DevisData {
 
   // 2. Labor Extraction
   // Supports "main d'œuvre", "main d'oeuvre", "main doeuvre", "main d œuvre" with ligature or separate letters
-  const laborRegex = /main\s*d['’]?(?:œ|oe|o)uvre[^\d]*?(\d+)\s*(?:jours?|j)\s*(?:à|a)?\s*(\d[\d\s]*)/i;
+  // Regression: "main d oeuvre" (space, no apostrophe) was not matched because
+  // \s* only looked after "main" and the ligature group (e.g. "oe") needs an
+  // optional space after the "d". Allow whitespace after the optional apostrophe.
+  const laborRegex = /main\s*d['’]?\s*(?:œ|oe|o)uvre[^\d]*?(\d+)\s*(?:jours?|j)\s*(?:à|a)?\s*(\d[\d\s]*)/i;
   const laborMatch = text.match(laborRegex);
   if (laborMatch) {
     result.labor_days = parseInt(laborMatch[1], 10) || 0;
@@ -283,14 +286,19 @@ export function extractStructuredDevis(text: string): DevisData {
   }
 
   // Remove labor clause before parsing items so "main d'oeuvre 1 jour à 20000" doesn't create a fake item
-  const cleanText = text.replace(/main\s*d['’]?(?:œ|oe|o)uvre.*?(?:,|$)/gi, ' ');
+  const cleanText = text.replace(/main\s*d['’]?\s*(?:œ|oe|o)uvre.*?(?:,|$)/gi, ' ');
 
   // 3. Items Extraction
   // Supports specs with digits like "fer de 12", "pots de peinture", "rouleaux", "sacs de ciment"
   const regex = /(\d+)\s+([a-zà-ÿ0-9\s'’\.-]+?)\s+(?:à|a|au\s+prix\s+de)\s+(\d[\d\s]*)/gi;
   let match;
+  // Regression: "0 sacs à 4500, 10 sacs à 0" must not trigger the default
+  // item fallback. Track whether the user actually dictated any item, even if
+  // every one was rejected (quantity/price <= 0).
+  let sawItemAttempt = false;
 
   while ((match = regex.exec(cleanText)) !== null) {
+    sawItemAttempt = true;
     const qty = parseInt(match[1], 10);
     let desc = match[2].trim().replace(/\s+(?:le|la|les|pour|au|du|le\s+sac|par\s+sac|le\s+paquet|le\s+pot|l'unité)$/i, '');
     const price = parseInt(match[3].replace(/\s+/g, ''), 10);
@@ -321,8 +329,8 @@ export function extractStructuredDevis(text: string): DevisData {
     }
   }
 
-  // Fallback defaults if voice text was very brief
-  if (result.items.length === 0) {
+  // Fallback defaults if voice text was very brief (and no item was dictated)
+  if (result.items.length === 0 && !sawItemAttempt) {
     result.items.push({
       id: 'item_1',
       description: 'Fournitures et matériaux',
@@ -348,13 +356,18 @@ export function extractStructuredCotis(text: string): CotisData {
   }
 
   // 2. Member contributions
-  const memberRegex = /([A-ZÀ-Ÿ][a-zà-ÿ]+)\s+(?:a\s+payé|a\s+versé|a\s+donné|doit|cotise|participe)?\s*([^.,;]+(?:(?:,|et)\s*(?:le\s+)?droit[^.,;]+)?)/gi;
+  // Regression: "Koffi doit 2000 francs" stayed "payé". The verb group was
+  // non-capturing, so "doit" was consumed by the verb alternation and the
+  // rest.includes('doit') fallback could never fire. Capture the verb so an
+  // explicit "doit" forces the "en attente" status.
+  const memberRegex = /([A-ZÀ-Ÿ][a-zà-ÿ]+)\s+((?:a\s+payé|a\s+versé|a\s+donné|doit|cotise|participe)?)\s*([^.,;]+(?:(?:,|et)\s*(?:le\s+)?droit[^.,;]+)?)/gi;
   let m;
 
   while ((m = memberRegex.exec(text)) !== null) {
     const rawName = m[1].trim();
     if (['Pour', 'Avec', 'Dans', 'Aujourd', 'Devis', 'Chantier'].includes(rawName)) continue;
-    const rest = m[2];
+    const verb = (m[2] || '').toLowerCase();
+    const rest = m[3];
 
     const amountMatches = [...rest.matchAll(/(?:(cotisation(?:\s+mensuelle)?|droit\s+de\s+secours|tontine|frais|arriéré|secours)[^\d]*)?(\d[\d\s]*)\s*(?:f|francs?|cfa|fcfa)?(?:\s+(seulement|partiel|en\s+retard|en\s+attente))?/gi)];
 
@@ -366,9 +379,13 @@ export function extractStructuredCotis(text: string): CotisData {
 
       if (amount && amount >= 50) {
         let status: 'payé' | 'partiel' | 'en attente' = 'payé';
-        if (qualifier.includes('partiel') || rest.includes('partiel') || qualifier.includes('seulement')) {
+        // Regression: "X a payé 1000 francs seulement" must be partiel. The amount
+        // regex consumes the trailing space (\d[\d\s]*) so the "seulement" capture
+        // never fires; mirror the rest.includes() fallback already used for
+        // "partiel" and "en attente".
+        if (qualifier.includes('partiel') || rest.includes('partiel') || qualifier.includes('seulement') || rest.includes('seulement')) {
           status = 'partiel';
-        } else if (rest.includes('attente') || rest.includes('retard') || rest.includes('doit')) {
+        } else if (rest.includes('attente') || rest.includes('retard') || rest.includes('doit') || verb.includes('doit')) {
           status = 'en attente';
         }
 
@@ -430,7 +447,16 @@ export function extractStructuredChantier(text: string): ChantierData {
   const workMatches = text.match(/(?:nous\s+avons\s+|on\s+a\s+|réalisation\s+de\s+|pose\s+des?\s+|crépissage\s+de\s+|coulage\s+de\s+|exécution\s+de\s+)?([a-zà-ÿ0-9\s'’-]{6,65}?)(?:,|\.|\bconsommé\b|\bil\s+faut\b|\bbesoin\b)/i);
   if (workMatches && workMatches[1]) {
     let task = workMatches[1].trim();
-    if (!task.includes('consommé') && !task.includes('commander') && !task.startsWith("d'hui")) {
+    // Regression: the lazy char class has no uppercase, so scanning starts at
+    // mid-word for "Aujourd'hui" -> "ujourd'hui" / "Jourd'hui". Exclude any
+    // captured fragment that is really a temporal opener; fallback then covers
+    // the actually-dictated work with the placeholder below.
+    if (
+      !task.includes('consommé') &&
+      !task.includes('commander') &&
+      !task.startsWith("d'hui") &&
+      !/^(?:jourd|aujourd|ujour|hier|demain|après)/i.test(task)
+    ) {
       result.work_done.push(task.charAt(0).toUpperCase() + task.slice(1));
     }
   }
@@ -462,7 +488,10 @@ export function extractStructuredChantier(text: string): ChantierData {
       id: 'mat_n_' + Math.random().toString(36).substring(2, 7),
       material: n[2].trim(),
       quantity: n[1],
-      deadline: n[3] ? (n[3].startsWith('d') ? n[3] : 'Pour ' + n[3]) : 'Urgent (Semaine prochaine)',
+      // Regression: "commander 2 tonnes de fer pour demain" produced a bare
+      // "demain" deadline because the old rule kept any target starting with
+      // 'd' un-prefixed. Always render the "Pour X" form for consistency.
+      deadline: n[3] ? ('Pour ' + n[3]) : 'Urgent (Semaine prochaine)',
       urgent: true,
     });
   }

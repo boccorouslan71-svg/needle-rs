@@ -34,7 +34,8 @@ import {
   renderDevisToCanvas, 
   renderCotisToCanvas, 
   renderChantierToCanvas, 
-  getCanvasBlob 
+  getCanvasBlob,
+  exportCanvasToPdf 
 } from './document_renderer';
 import { DiktaoSpeechRecognizer } from './use_speech';
 import { PWAManager } from './pwa_manager';
@@ -855,6 +856,25 @@ async function handleDownloadPNG() {
   }
 }
 
+async function handleDownloadPDF() {
+  if (!generatedCanvas) return;
+  try {
+    const blob = await exportCanvasToPdf(generatedCanvas);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Diktao_${currentModule.toUpperCase()}_${new Date().toISOString().slice(0, 10)}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Document PDF téléchargé avec succès !", "success");
+  } catch (err) {
+    console.error('PDF download error:', err);
+    showToast("Erreur lors du téléchargement du PDF.", "error");
+  }
+}
+
 async function handleShareWhatsApp() {
   let text = '';
   if (currentModule === 'devis' && currentDevis) {
@@ -1191,6 +1211,7 @@ function bindEventListeners() {
   // Share Actions
   document.getElementById('share-whatsapp-btn')?.addEventListener('click', handleShareWhatsApp);
   document.getElementById('share-download-btn')?.addEventListener('click', handleDownloadPNG);
+  document.getElementById('share-pdf-btn')?.addEventListener('click', handleDownloadPDF);
   document.getElementById('share-native-btn')?.addEventListener('click', handleNativeWebShare);
   document.getElementById('share-new-doc-btn')?.addEventListener('click', () => renderScreen('home'));
 
